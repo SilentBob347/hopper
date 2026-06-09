@@ -10,7 +10,7 @@ struct ServerLibraryView: View {
                 ContentUnavailableView(
                     "No servers",
                     systemImage: "server.rack",
-                    description: Text("Scan a QR code from configure_server.sh on each hop.")
+                    description: Text("Scan a QR code from deploy.sh that was shown in the browser.")
                 )
             } else {
                 ForEach(vpn.state.servers) { server in
