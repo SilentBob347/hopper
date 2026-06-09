@@ -1,0 +1,27 @@
+Privacy Policy
+
+ɹǝddoH (Hopper) does not collect, store, or transmit any personal data to us or any third party.
+
+Summary
+
+- No accounts, analytics, advertising, or telemetry
+- No cloud sync or backend operated by the app developer
+- No data is sold or shared with third parties
+
+What stays on your device
+
+The app saves configuration you provide locally on your iPhone or iPad (for example server hostnames, SSH keys, and hop chains) in the app's shared container. That information is used only to connect to your servers. We do not have access to it.
+
+Camera
+
+The camera is used only to scan QR codes for hop configuration. Images are processed on device and are not uploaded.
+
+Network traffic
+
+When the VPN is active, IP traffic is tunneled over SSH to servers you configure. That traffic does not pass through us. We do not inspect, log, or retain your browsing or application traffic.
+
+Contact
+
+This project is open source. For privacy questions, open an issue on the project repository.
+
+Last updated: June 2026
