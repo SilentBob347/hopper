@@ -32,6 +32,7 @@
 		A03E48238429801DC59B2AEC /* QRCodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94522CBE338B3FB5B345A67D /* QRCodeScannerView.swift */; };
 		A04994D86929B1A6EF8BAC9F /* HopNodeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D2D1273F6269AA697AD5F04 /* HopNodeProfile.swift */; };
 		A7B8C9D0E1F2031425364758 /* HopSSH.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F2031425364758697A8B9C /* HopSSH.swift */; };
+		ASSETSCATALOG123456789 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 084B40B3C537880002942004 /* Assets.xcassets */; };
 		B74D8609AF494990801F050B /* TunnelBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6621F4DA12D842B28C56BD8C /* TunnelBootstrap.swift */; };
 		B8C9D0E1F203142536475869 /* HopSSH.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F2031425364758697A8B9C /* HopSSH.swift */; };
 		BDB80E77EF44A99AAB5A67DB /* HopperApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 704FF9F3582F1AC562B76869 /* HopperApp.swift */; };
@@ -47,7 +48,6 @@
 		F304152637485968697A8B9C0 /* HopChain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4152637485968697A8B9C0D1 /* HopChain.swift */; };
 		F3A4B5C6D7E8F9012A3B4C5D /* IPTunnelEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F60718293A4B5C6E /* IPTunnelEngine.swift */; };
 		F4A5B6C7D8E9F0123A4B5C6D /* PacketFlowIO.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F60718293A4B5C6D7F /* PacketFlowIO.swift */; };
-		ASSETSCATALOG123456789 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 084B40B3C537880002942004 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -384,7 +384,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Hopper/Hopper.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = A59M2YXS84;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Hopper/Info.plist;
@@ -441,7 +441,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Hopper/Hopper.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = A59M2YXS84;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Hopper/Info.plist;

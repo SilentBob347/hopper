@@ -1,6 +1,30 @@
 # ɹǝddoH (Hopper)
 
+<p align="center">
+  <img src="screenshots/app-icon.png" width="128" alt="ɹǝddoH app icon">
+</p>
+
 iOS VPN client and Linux server stack for a **multi-hop SSH overlay**: traffic is tunneled as raw IP packets over SSH, routed through a chain of nodes, and NAT’d at the exit. One app, one server daemon (`hopperd`), no legacy relays.
+
+## Screenshots
+
+### iPhone
+
+<p align="center">
+  <img src="screenshots/iphone/01-home.png" width="200" alt="Home — chain, connect, and route">
+  <img src="screenshots/iphone/02-chain.png" width="200" alt="Chain detail — entry to exit hops">
+  <img src="screenshots/iphone/03-servers.png" width="200" alt="Server library">
+  <img src="screenshots/iphone/04-provisioning.png" width="200" alt="Provisioning chain on connect">
+</p>
+
+### iPad
+
+<p align="center">
+  <img src="screenshots/ipad/01-home.png" width="280" alt="Home — connected VPN">
+  <img src="screenshots/ipad/02-servers.png" width="280" alt="Server library">
+  <img src="screenshots/ipad/03-chain.png" width="280" alt="Chain detail">
+  <img src="screenshots/ipad/04-chains.png" width="280" alt="Chains list">
+</p>
 
 ---
 
