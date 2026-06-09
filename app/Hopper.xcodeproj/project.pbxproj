@@ -1,0 +1,552 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0AAE48F656ACBC88E3324412 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C22A71A64523CB48101FD9A /* ContentView.swift */; };
+		0B87226390F54E10B36ABEAD /* ProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F250DD836A2049CFAE9D27E9 /* ProfileStore.swift */; };
+		405EA298DD44420EAEF6CD8D /* HopNodeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D2D1273F6269AA697AD5F04 /* HopNodeProfile.swift */; };
+		414FDB77369F47F7A773A6A9 /* HopConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = F45BFE9DC7592E666545A099 /* HopConstants.swift */; };
+		52637485968697A8B9C0D1E2 /* HopChain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4152637485968697A8B9C0D1 /* HopChain.swift */; };
+		5BD25DB021B0237BE59D7651 /* TunnelLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D52399B66A2159838C28BD /* TunnelLog.swift */; };
+		603DAF25D25A4FA2B2BC720A /* TunnelLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D52399B66A2159838C28BD /* TunnelLog.swift */; };
+		637485968697A8B9C0D1E2F3 /* ChainConfiguratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7485968697A8B9C0D1E2F304 /* ChainConfiguratorView.swift */; };
+		63866ED9B7B7D2C6711963DA /* SSHHopConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE35FD6F33F30C1641689C66 /* SSHHopConnector.swift */; };
+		70EAF2D371632D3FB3321E0F /* TunnelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1194BB47AC7CE27E712A1B2 /* TunnelCoordinator.swift */; };
+		715195481896AD947FBF1484 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BD014D83F36384CE187CCF7 /* PacketTunnelProvider.swift */; };
+		7485968697A8B9C0D1E2F3041 /* ChainDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85968697A8B9C0D1E2F30415 /* ChainDetailView.swift */; };
+		85968697A8B9C0D1E2F304152 /* ServerLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 968697A8B9C0D1E2F3041526 /* ServerLibraryView.swift */; };
+		88448CC51651F6B2B1D0171E /* HopErrorDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14BF947665BDAD9E2F388A0E /* HopErrorDetails.swift */; };
+		88A83F4D2FD8595A00CA1A17 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 087C7CA4652841025CF1413E /* Citadel */; };
+		88A83F602FD874FB00CA1A17 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 242EF829277F49379E0C6EB1 /* AppState.swift */; };
+		88A83F612FD874FB00CA1A17 /* ProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F250DD836A2049CFAE9D27E9 /* ProfileStore.swift */; };
+		88A83F622FD874FB00CA1A17 /* TunnelBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6621F4DA12D842B28C56BD8C /* TunnelBootstrap.swift */; };
+		8F615F6E5483432EBA4D015C /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 242EF829277F49379E0C6EB1 /* AppState.swift */; };
+		957C08B172C2427EB1BE3232 /* VPNController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EEFC4631F1540ACB63127E0 /* VPNController.swift */; };
+		96CA00CA8887389605A5F0FA /* HopConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = F45BFE9DC7592E666545A099 /* HopConstants.swift */; };
+		99CITADELAPP000000001 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 087C7CA4652841025CF1413E /* Citadel */; };
+		A03E48238429801DC59B2AEC /* QRCodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94522CBE338B3FB5B345A67D /* QRCodeScannerView.swift */; };
+		A04994D86929B1A6EF8BAC9F /* HopNodeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D2D1273F6269AA697AD5F04 /* HopNodeProfile.swift */; };
+		A7B8C9D0E1F2031425364758 /* HopSSH.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F2031425364758697A8B9C /* HopSSH.swift */; };
+		B74D8609AF494990801F050B /* TunnelBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6621F4DA12D842B28C56BD8C /* TunnelBootstrap.swift */; };
+		B8C9D0E1F203142536475869 /* HopSSH.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F2031425364758697A8B9C /* HopSSH.swift */; };
+		BDB80E77EF44A99AAB5A67DB /* HopperApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 704FF9F3582F1AC562B76869 /* HopperApp.swift */; };
+		C6E3BEFB37C945219CDD6EED /* HopperExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F244D2E917359B19CE68A20B /* HopperExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C9D0E1F2031425364758697 /* ChainTopology.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2031425364758697A8B9C0D /* ChainTopology.swift */; };
+		CFD66CD3138C444AA2707CF7 /* IPTunnelProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* IPTunnelProtocol.swift */; };
+		D0E1F2031425364758697A8 /* HopReadyReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 031425364758697A8B9C0D1E /* HopReadyReport.swift */; };
+		D5D063BA3E514DE9B4C0F493 /* HopQRParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B01CB979EA814AFEAF4A71 /* HopQRParser.swift */; };
+		E1F2031425364758697A8B9 /* ChainProvisioner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1425364758697A8B9C0D1E2F /* ChainProvisioner.swift */; };
+		E1F65044C8F7FF51C518CF55 /* SSHByteStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B37DAEAA57B323FF98A10EF /* SSHByteStream.swift */; };
+		EDE911C03B324EC58C1AEA10 /* HopErrorDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14BF947665BDAD9E2F388A0E /* HopErrorDetails.swift */; };
+		F1A2B3C4D5E6F708192A3B4C /* IPTunnelProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* IPTunnelProtocol.swift */; };
+		F304152637485968697A8B9C0 /* HopChain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4152637485968697A8B9C0D1 /* HopChain.swift */; };
+		F3A4B5C6D7E8F9012A3B4C5D /* IPTunnelEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F60718293A4B5C6E /* IPTunnelEngine.swift */; };
+		F4A5B6C7D8E9F0123A4B5C6D /* PacketFlowIO.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F60718293A4B5C6D7F /* PacketFlowIO.swift */; };
+		ASSETSCATALOG123456789 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 084B40B3C537880002942004 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		9E8F28682D944253AD79C0AD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E1705675CB9C5A421F995489 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FAE3CEDD4CC4028FC64728C4;
+			remoteInfo = HopperExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		2BB126CF2B4D0BC0B5DDA08D /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C6E3BEFB37C945219CDD6EED /* HopperExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		031425364758697A8B9C0D1E /* HopReadyReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HopReadyReport.swift; sourceTree = "<group>"; };
+		084B40B3C537880002942004 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1425364758697A8B9C0D1E2F /* ChainProvisioner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainProvisioner.swift; sourceTree = "<group>"; };
+		14BF947665BDAD9E2F388A0E /* HopErrorDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HopErrorDetails.swift; sourceTree = "<group>"; };
+		242EF829277F49379E0C6EB1 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		2D2D1273F6269AA697AD5F04 /* HopNodeProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HopNodeProfile.swift; sourceTree = "<group>"; };
+		4152637485968697A8B9C0D1 /* HopChain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HopChain.swift; sourceTree = "<group>"; };
+		4B37DAEAA57B323FF98A10EF /* SSHByteStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHByteStream.swift; sourceTree = "<group>"; };
+		6621F4DA12D842B28C56BD8C /* TunnelBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelBootstrap.swift; sourceTree = "<group>"; };
+		704FF9F3582F1AC562B76869 /* HopperApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HopperApp.swift; sourceTree = "<group>"; };
+		7485968697A8B9C0D1E2F304 /* ChainConfiguratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainConfiguratorView.swift; sourceTree = "<group>"; };
+		7C22A71A64523CB48101FD9A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		7D389E9F25A21677466FD6D9 /* HopperExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HopperExtension.entitlements; sourceTree = "<group>"; };
+		7EEFC4631F1540ACB63127E0 /* VPNController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNController.swift; sourceTree = "<group>"; };
+		836A56014D0B14E9E3B490D3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		85968697A8B9C0D1E2F30415 /* ChainDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainDetailView.swift; sourceTree = "<group>"; };
+		8BD014D83F36384CE187CCF7 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		92D52399B66A2159838C28BD /* TunnelLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelLog.swift; sourceTree = "<group>"; };
+		94522CBE338B3FB5B345A67D /* QRCodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeScannerView.swift; sourceTree = "<group>"; };
+		968697A8B9C0D1E2F3041526 /* ServerLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerLibraryView.swift; sourceTree = "<group>"; };
+		9BED07971A6FCE272A1449D3 /* Hopper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hopper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1B2C3D4E5F60718293A4B5D /* IPTunnelProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPTunnelProtocol.swift; sourceTree = "<group>"; };
+		A685E3FC118D2E2B3BD0537B /* Hopper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Hopper.entitlements; sourceTree = "<group>"; };
+		B2C3D4E5F60718293A4B5C6E /* IPTunnelEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPTunnelEngine.swift; sourceTree = "<group>"; };
+		C3D4E5F60718293A4B5C6D7F /* PacketFlowIO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketFlowIO.swift; sourceTree = "<group>"; };
+		D2B1D8F2422EC5876E97677D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		DE35FD6F33F30C1641689C66 /* SSHHopConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHHopConnector.swift; sourceTree = "<group>"; };
+		E1F2031425364758697A8B9C /* HopSSH.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HopSSH.swift; sourceTree = "<group>"; };
+		E2B01CB979EA814AFEAF4A71 /* HopQRParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HopQRParser.swift; sourceTree = "<group>"; };
+		F1194BB47AC7CE27E712A1B2 /* TunnelCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelCoordinator.swift; sourceTree = "<group>"; };
+		F2031425364758697A8B9C0D /* ChainTopology.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainTopology.swift; sourceTree = "<group>"; };
+		F244D2E917359B19CE68A20B /* HopperExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HopperExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F250DD836A2049CFAE9D27E9 /* ProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileStore.swift; sourceTree = "<group>"; };
+		F45BFE9DC7592E666545A099 /* HopConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HopConstants.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		243E0861DD72692414392600 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				88A83F4D2FD8595A00CA1A17 /* Citadel in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		96933AAF6F9D289262E2487C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				99CITADELAPP000000001 /* Citadel in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2811302064111CAC30B37361 /* Hopper */ = {
+			isa = PBXGroup;
+			children = (
+				7C22A71A64523CB48101FD9A /* ContentView.swift */,
+				704FF9F3582F1AC562B76869 /* HopperApp.swift */,
+				94522CBE338B3FB5B345A67D /* QRCodeScannerView.swift */,
+				7EEFC4631F1540ACB63127E0 /* VPNController.swift */,
+				1425364758697A8B9C0D1E2F /* ChainProvisioner.swift */,
+				7485968697A8B9C0D1E2F304 /* ChainConfiguratorView.swift */,
+				85968697A8B9C0D1E2F30415 /* ChainDetailView.swift */,
+				968697A8B9C0D1E2F3041526 /* ServerLibraryView.swift */,
+				084B40B3C537880002942004 /* Assets.xcassets */,
+				836A56014D0B14E9E3B490D3 /* Info.plist */,
+				A685E3FC118D2E2B3BD0537B /* Hopper.entitlements */,
+			);
+			path = Hopper;
+			sourceTree = "<group>";
+		};
+		33776F104DB424234031C883 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				242EF829277F49379E0C6EB1 /* AppState.swift */,
+				F45BFE9DC7592E666545A099 /* HopConstants.swift */,
+				14BF947665BDAD9E2F388A0E /* HopErrorDetails.swift */,
+				2D2D1273F6269AA697AD5F04 /* HopNodeProfile.swift */,
+				4152637485968697A8B9C0D1 /* HopChain.swift */,
+				F250DD836A2049CFAE9D27E9 /* ProfileStore.swift */,
+				E2B01CB979EA814AFEAF4A71 /* HopQRParser.swift */,
+				A1B2C3D4E5F60718293A4B5D /* IPTunnelProtocol.swift */,
+				6621F4DA12D842B28C56BD8C /* TunnelBootstrap.swift */,
+				F2031425364758697A8B9C0D /* ChainTopology.swift */,
+				031425364758697A8B9C0D1E /* HopReadyReport.swift */,
+				92D52399B66A2159838C28BD /* TunnelLog.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		3455F4A539D215361CB5A4F8 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		36CBD93759DF0E37C51A11E1 /* HopperExtension */ = {
+			isa = PBXGroup;
+			children = (
+				8BD014D83F36384CE187CCF7 /* PacketTunnelProvider.swift */,
+				D2B1D8F2422EC5876E97677D /* Info.plist */,
+				7D389E9F25A21677466FD6D9 /* HopperExtension.entitlements */,
+			);
+			path = HopperExtension;
+			sourceTree = "<group>";
+		};
+		BFDF561728F2CB3B9984A95C /* TunnelCore */ = {
+			isa = PBXGroup;
+			children = (
+				B2C3D4E5F60718293A4B5C6E /* IPTunnelEngine.swift */,
+				C3D4E5F60718293A4B5C6D7F /* PacketFlowIO.swift */,
+				4B37DAEAA57B323FF98A10EF /* SSHByteStream.swift */,
+				DE35FD6F33F30C1641689C66 /* SSHHopConnector.swift */,
+				F1194BB47AC7CE27E712A1B2 /* TunnelCoordinator.swift */,
+				E1F2031425364758697A8B9C /* HopSSH.swift */,
+			);
+			path = TunnelCore;
+			sourceTree = "<group>";
+		};
+		F08972380305BF49FC59E480 = {
+			isa = PBXGroup;
+			children = (
+				2811302064111CAC30B37361 /* Hopper */,
+				36CBD93759DF0E37C51A11E1 /* HopperExtension */,
+				33776F104DB424234031C883 /* Shared */,
+				BFDF561728F2CB3B9984A95C /* TunnelCore */,
+				FAD197B1488BE06B5DBF0F98 /* Products */,
+				3455F4A539D215361CB5A4F8 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		FAD197B1488BE06B5DBF0F98 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9BED07971A6FCE272A1449D3 /* Hopper.app */,
+				F244D2E917359B19CE68A20B /* HopperExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F96B9454EC79981C2CA49071 /* Hopper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1AEC30D4ED263C6CB894DB3 /* Build configuration list for PBXNativeTarget "Hopper" */;
+			buildPhases = (
+				9D251D82531E0DC99F57EE5E /* Sources */,
+				96933AAF6F9D289262E2487C /* Frameworks */,
+				86F62AEE0E5B75314FDC9B10 /* Resources */,
+				2BB126CF2B4D0BC0B5DDA08D /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DAF33C013CA04CCB87E42368 /* PBXTargetDependency */,
+			);
+			name = Hopper;
+			packageProductDependencies = (
+				087C7CA4652841025CF1413E /* Citadel */,
+			);
+			productName = Hopper;
+			productReference = 9BED07971A6FCE272A1449D3 /* Hopper.app */;
+			productType = "com.apple.product-type.application";
+		};
+		FAE3CEDD4CC4028FC64728C4 /* HopperExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5C4A7138FA9F6CD979432700 /* Build configuration list for PBXNativeTarget "HopperExtension" */;
+			buildPhases = (
+				BC1CE600C16C62E6632FCAD0 /* Sources */,
+				243E0861DD72692414392600 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HopperExtension;
+			packageProductDependencies = (
+				087C7CA4652841025CF1413E /* Citadel */,
+			);
+			productName = HopperExtension;
+			productReference = F244D2E917359B19CE68A20B /* HopperExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E1705675CB9C5A421F995489 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = 8FB0A0F3ECDFC7C842A5FFF3 /* Build configuration list for PBXProject "Hopper" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = F08972380305BF49FC59E480;
+			packageReferences = (
+				585CCCA84AABD2780AC48784 /* XCLocalSwiftPackageReference "Vendor/Citadel" */,
+			);
+			productRefGroup = FAD197B1488BE06B5DBF0F98 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F96B9454EC79981C2CA49071 /* Hopper */,
+				FAE3CEDD4CC4028FC64728C4 /* HopperExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		86F62AEE0E5B75314FDC9B10 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ASSETSCATALOG123456789 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		9D251D82531E0DC99F57EE5E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				957C08B172C2427EB1BE3232 /* VPNController.swift in Sources */,
+				88A83F602FD874FB00CA1A17 /* AppState.swift in Sources */,
+				88A83F612FD874FB00CA1A17 /* ProfileStore.swift in Sources */,
+				88A83F622FD874FB00CA1A17 /* TunnelBootstrap.swift in Sources */,
+				414FDB77369F47F7A773A6A9 /* HopConstants.swift in Sources */,
+				EDE911C03B324EC58C1AEA10 /* HopErrorDetails.swift in Sources */,
+				405EA298DD44420EAEF6CD8D /* HopNodeProfile.swift in Sources */,
+				D5D063BA3E514DE9B4C0F493 /* HopQRParser.swift in Sources */,
+				CFD66CD3138C444AA2707CF7 /* IPTunnelProtocol.swift in Sources */,
+				603DAF25D25A4FA2B2BC720A /* TunnelLog.swift in Sources */,
+				0AAE48F656ACBC88E3324412 /* ContentView.swift in Sources */,
+				BDB80E77EF44A99AAB5A67DB /* HopperApp.swift in Sources */,
+				A03E48238429801DC59B2AEC /* QRCodeScannerView.swift in Sources */,
+				E1F2031425364758697A8B9 /* ChainProvisioner.swift in Sources */,
+				C9D0E1F2031425364758697 /* ChainTopology.swift in Sources */,
+				D0E1F2031425364758697A8 /* HopReadyReport.swift in Sources */,
+				A7B8C9D0E1F2031425364758 /* HopSSH.swift in Sources */,
+				F304152637485968697A8B9C0 /* HopChain.swift in Sources */,
+				637485968697A8B9C0D1E2F3 /* ChainConfiguratorView.swift in Sources */,
+				7485968697A8B9C0D1E2F3041 /* ChainDetailView.swift in Sources */,
+				85968697A8B9C0D1E2F304152 /* ServerLibraryView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC1CE600C16C62E6632FCAD0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8F615F6E5483432EBA4D015C /* AppState.swift in Sources */,
+				0B87226390F54E10B36ABEAD /* ProfileStore.swift in Sources */,
+				B74D8609AF494990801F050B /* TunnelBootstrap.swift in Sources */,
+				96CA00CA8887389605A5F0FA /* HopConstants.swift in Sources */,
+				88448CC51651F6B2B1D0171E /* HopErrorDetails.swift in Sources */,
+				A04994D86929B1A6EF8BAC9F /* HopNodeProfile.swift in Sources */,
+				F1A2B3C4D5E6F708192A3B4C /* IPTunnelProtocol.swift in Sources */,
+				5BD25DB021B0237BE59D7651 /* TunnelLog.swift in Sources */,
+				F3A4B5C6D7E8F9012A3B4C5D /* IPTunnelEngine.swift in Sources */,
+				F4A5B6C7D8E9F0123A4B5C6D /* PacketFlowIO.swift in Sources */,
+				E1F65044C8F7FF51C518CF55 /* SSHByteStream.swift in Sources */,
+				63866ED9B7B7D2C6711963DA /* SSHHopConnector.swift in Sources */,
+				70EAF2D371632D3FB3321E0F /* TunnelCoordinator.swift in Sources */,
+				715195481896AD947FBF1484 /* PacketTunnelProvider.swift in Sources */,
+				B8C9D0E1F203142536475869 /* HopSSH.swift in Sources */,
+				52637485968697A8B9C0D1E2 /* HopChain.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DAF33C013CA04CCB87E42368 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = FAE3CEDD4CC4028FC64728C4 /* HopperExtension */;
+			targetProxy = 9E8F28682D944253AD79C0AD /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		214D7EC0B3C847B086D4103C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		740D2611C29476469273AE91 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Hopper/Hopper.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A59M2YXS84;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Hopper/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "ɹǝddoH";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aengix.hopper;
+				PRODUCT_NAME = Hopper;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		8E787591CBBD56429168E12E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HopperExtension/HopperExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A59M2YXS84;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HopperExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aengix.hopper.tunnel;
+				PRODUCT_NAME = HopperExtension;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		91736B562A44C7C6CEF9C97E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Hopper/Hopper.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A59M2YXS84;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Hopper/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "ɹǝddoH";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aengix.hopper;
+				PRODUCT_NAME = Hopper;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E5F07A443F187E88ACFB3045 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HopperExtension/HopperExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A59M2YXS84;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HopperExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aengix.hopper.tunnel;
+				PRODUCT_NAME = HopperExtension;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		FA2DE04B63B367F4EDD6AAA3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5C4A7138FA9F6CD979432700 /* Build configuration list for PBXNativeTarget "HopperExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E5F07A443F187E88ACFB3045 /* Debug */,
+				8E787591CBBD56429168E12E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8FB0A0F3ECDFC7C842A5FFF3 /* Build configuration list for PBXProject "Hopper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				214D7EC0B3C847B086D4103C /* Debug */,
+				FA2DE04B63B367F4EDD6AAA3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1AEC30D4ED263C6CB894DB3 /* Build configuration list for PBXNativeTarget "Hopper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				91736B562A44C7C6CEF9C97E /* Debug */,
+				740D2611C29476469273AE91 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		585CCCA84AABD2780AC48784 /* XCLocalSwiftPackageReference "Vendor/Citadel" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/Citadel;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		087C7CA4652841025CF1413E /* Citadel */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 585CCCA84AABD2780AC48784 /* XCLocalSwiftPackageReference "Vendor/Citadel" */;
+			productName = Citadel;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = E1705675CB9C5A421F995489 /* Project object */;
+}

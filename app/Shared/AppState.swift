@@ -1,0 +1,116 @@
+import Foundation
+
+struct AppState: Codable, Equatable {
+    var servers: [HopNodeProfile] = []
+    var chains: [HopChain] = []
+    var selectedChainID: UUID?
+
+    var selectedChain: HopChain? {
+        guard let selectedChainID else { return nil }
+        return chains.first { $0.id == selectedChainID }
+    }
+
+    /// Resolved hops for the selected chain (entry → exit).
+    var activeHops: [HopNodeProfile] {
+        guard let chain = selectedChain else { return [] }
+        return resolveHops(chain)
+    }
+
+    var entryHop: HopNodeProfile? { activeHops.first }
+
+    func server(id: UUID) -> HopNodeProfile? {
+        servers.first { $0.id == id }
+    }
+
+    func resolveHops(_ chain: HopChain) -> [HopNodeProfile] {
+        chain.hopIDs.compactMap { server(id: $0) }
+    }
+
+    mutating func addServer(_ server: HopNodeProfile) {
+        servers.append(server)
+    }
+
+    mutating func removeServers(at offsets: IndexSet) {
+        let removed = offsets.compactMap { servers.indices.contains($0) ? servers[$0].id : nil }
+        for index in offsets.sorted(by: >) where servers.indices.contains(index) {
+            servers.remove(at: index)
+        }
+        for i in chains.indices {
+            chains[i].hopIDs.removeAll { removed.contains($0) }
+        }
+        if let selected = selectedChainID, !chains.contains(where: { $0.id == selected }) {
+            selectedChainID = chains.first?.id
+        }
+    }
+
+    mutating func addChain(name: String = "") -> UUID {
+        let chain = HopChain(name: name)
+        chains.append(chain)
+        if selectedChainID == nil {
+            selectedChainID = chain.id
+        }
+        return chain.id
+    }
+
+    mutating func removeChains(at offsets: IndexSet) {
+        let removed = offsets.compactMap { chains.indices.contains($0) ? chains[$0].id : nil }
+        for index in offsets.sorted(by: >) where chains.indices.contains(index) {
+            chains.remove(at: index)
+        }
+        if let selected = selectedChainID, removed.contains(selected) {
+            selectedChainID = chains.first?.id
+        }
+    }
+
+    mutating func selectChain(_ id: UUID?) {
+        selectedChainID = id
+    }
+
+    mutating func renameChain(id: UUID, name: String) {
+        guard let index = chains.firstIndex(where: { $0.id == id }) else { return }
+        chains[index].name = name
+    }
+
+    mutating func moveHopInChain(chainID: UUID, from source: IndexSet, to destination: Int) {
+        guard let index = chains.firstIndex(where: { $0.id == chainID }) else { return }
+        var hopIDs = chains[index].hopIDs
+        let moving = source.sorted().map { hopIDs[$0] }
+        var target = destination
+        for offset in source.sorted() where offset < destination {
+            target -= 1
+        }
+        for offset in source.sorted(by: >) {
+            hopIDs.remove(at: offset)
+        }
+        for (i, id) in moving.enumerated() {
+            hopIDs.insert(id, at: target + i)
+        }
+        chains[index].hopIDs = hopIDs
+    }
+
+    mutating func addServerToChain(chainID: UUID, serverID: UUID) {
+        guard let index = chains.firstIndex(where: { $0.id == chainID }) else { return }
+        guard servers.contains(where: { $0.id == serverID }) else { return }
+        guard !chains[index].hopIDs.contains(serverID) else { return }
+        chains[index].hopIDs.append(serverID)
+    }
+
+    mutating func removeHopFromChain(chainID: UUID, at offsets: IndexSet) {
+        guard let index = chains.firstIndex(where: { $0.id == chainID }) else { return }
+        for offset in offsets.sorted(by: >) where chains[index].hopIDs.indices.contains(offset) {
+            chains[index].hopIDs.remove(at: offset)
+        }
+    }
+
+    /// Migrate flat hop list from older app versions.
+    static func fromLegacyHops(_ hops: [HopNodeProfile]) -> AppState {
+        var state = AppState(servers: hops)
+        if hops.isEmpty { return state }
+        let chainID = state.addChain(name: "Default")
+        if let chainIndex = state.chains.firstIndex(where: { $0.id == chainID }) {
+            state.chains[chainIndex].hopIDs = hops.map(\.id)
+        }
+        state.selectedChainID = chainID
+        return state
+    }
+}

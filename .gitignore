@@ -1,0 +1,9 @@
+.DS_Store
+DerivedData/
+*.xcuserstate
+xcuserdata/
+server/dist/
+server/qr-*.html
+server/udp-relay
+server/__debug_bin*
+.vscode
