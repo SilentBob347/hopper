@@ -51,12 +51,12 @@ flowchart LR
   Exit -->|TUN + NAT| Internet[(Internet)]
 ```
 
-| Layer | Role |
-|--------|------|
-| **iOS** | L3 VPN (`NEPacketTunnelProvider`). All IPv4 default traffic → overlay client `10.64.0.2`. |
-| **iptunnel** | Framed IP over a byte stream (SSH `direct-tcpip` to `127.0.0.1:7400`). |
-| **hopperd** | Userspace routing between ingress (client), `next` (downstream hop), and TUN (internet on exit). |
-| **SSH** | App → entry hop; each hop → next hop via local `~/.hopper/id_ed25519`. |
+| Layer        | Role                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------ |
+| **iOS**      | L3 VPN (`NEPacketTunnelProvider`). All IPv4 default traffic → overlay client `10.64.0.2`.        |
+| **iptunnel** | Framed IP over a byte stream (SSH `direct-tcpip` to `127.0.0.1:7400`).                           |
+| **hopperd**  | Userspace routing between ingress (client), `next` (downstream hop), and TUN (internet on exit). |
+| **SSH**      | App → entry hop; each hop → next hop via local `~/.hopper/id_ed25519`.                           |
 
 ### Two-phase connect
 
@@ -67,11 +67,11 @@ Chain order in the app: **first = entry**, **last = exit**.
 
 ### Overlay (`10.64.0.0/24`)
 
-| Address | Use |
-|---------|-----|
-| `10.64.0.2` | iOS client |
+| Address              | Use                              |
+| -------------------- | -------------------------------- |
+| `10.64.0.2`          | iOS client                       |
 | `10.64.0.10` + index | Hop *i* in chain (entry = `.10`) |
-| `0.0.0.0/0` | Relay → `next`; exit → TUN + NAT |
+| `0.0.0.0/0`          | Relay → `next`; exit → TUN + NAT |
 
 ---
 
@@ -116,14 +116,14 @@ This will:
 
 Options (same as `remove.sh`):
 
-| Flag | Default | Meaning |
-|------|---------|---------|
-| `-u` | `root` | SSH user |
-| `-p` | `22` | SSH port |
-| `-i` | `~/.ssh/id_rsa` | SSH private key |
-| `-P` | `~/hopper` | Remote install path |
-| `-y` | — | Skip confirmation |
-| `--no-build` | — | Skip `build_dist.sh` |
+| Flag         | Default         | Meaning              |
+| ------------ | --------------- | -------------------- |
+| `-u`         | `root`          | SSH user             |
+| `-p`         | `22`            | SSH port             |
+| `-i`         | `~/.ssh/id_rsa` | SSH private key      |
+| `-P`         | `~/hopper`      | Remote install path  |
+| `-y`         | —               | Skip confirmation    |
+| `--no-build` | —               | Skip `build_dist.sh` |
 
 Environment: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT`, `DEPLOY_KEY`, `DEPLOY_PATH`.
 
@@ -164,13 +164,13 @@ Stops `hopperd`, removes `~/hopper`, `~/.hopper`, TUN `hopper0`, hopper NAT rule
 
 ### Scripts
 
-| Script | Who runs it | Purpose |
-|--------|-------------|---------|
-| `configure_server.sh` | Admin / `deploy.sh` | Generate host keypair, `authorized_keys`, optional `setcap`, emit QR JSON |
-| `start_server.sh` | iOS via SSH exec | `--stop-only`, `--trust-pubkey`, write config, start `hopperd`, print ready JSON |
-| `deploy.sh` | Developer | Build, upload, configure, browser QR |
-| `remove.sh` | Developer | Uninstall |
-| `build_dist.sh` | Developer | Cross-compile `hopperd` |
+| Script                | Who runs it         | Purpose                                                                          |
+| --------------------- | ------------------- | -------------------------------------------------------------------------------- |
+| `configure_server.sh` | Admin / `deploy.sh` | Generate host keypair, `authorized_keys`, optional `setcap`, emit QR JSON        |
+| `start_server.sh`     | iOS via SSH exec    | `--stop-only`, `--trust-pubkey`, write config, start `hopperd`, print ready JSON |
+| `deploy.sh`           | Developer           | Build, upload, configure, browser QR                                             |
+| `remove.sh`           | Developer           | Uninstall                                                                        |
+| `build_dist.sh`       | Developer           | Cross-compile `hopperd`                                                          |
 
 #### `configure_server.sh`
 
@@ -218,12 +218,12 @@ Binaries land in `server/dist/` (gitignored).
 
 ### Screens
 
-| Screen | Purpose |
-|--------|---------|
-| **Home** | Select chain, connect/disconnect, route preview |
-| **Configure chains** | Create/delete chains, open server library |
-| **Chain detail** | Name, reorder hops, add/remove servers |
-| **Server library** | Scan QR, delete saved servers |
+| Screen               | Purpose                                         |
+| -------------------- | ----------------------------------------------- |
+| **Home**             | Select chain, connect/disconnect, route preview |
+| **Configure chains** | Create/delete chains, open server library       |
+| **Chain detail**     | Name, reorder hops, add/remove servers          |
+| **Server library**   | Scan QR, delete saved servers                   |
 
 Profiles persist in the App Group (`hopper-profiles.json`).
 
@@ -280,13 +280,12 @@ server/
 
 ## Troubleshooting
 
-| Symptom | Things to check |
-|---------|------------------|
+| Symptom                   | Things to check                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------- |
 | VPN connects, no internet | Exit NAT: `iptables -t nat -L`; `hopper.log` on exit; re-connect to re-provision |
-| Chain provision fails | SSH from app to each hop; `start_server.sh` on server; keys in `authorized_keys` |
-| `hopperd` won’t start | Root/`setcap cap_net_admin`; read `~/.hopper/hopper.log` |
-| Extension errors | App Group + embedded extension; delete app and reinstall VPN profile |
-| App Store orientation | iPad requires all orientations in plist (already set for multitasking) |
+| Chain provision fails     | SSH from app to each hop; `start_server.sh` on server; keys in `authorized_keys` |
+| `hopperd` won’t start     | Root/`setcap cap_net_admin`; read `~/.hopper/hopper.log`                         |
+| Extension errors          | App Group + embedded extension; delete app and reinstall VPN profile             |
 
 **Logs**
 

@@ -26,15 +26,21 @@ enum ChainProvisioner {
     typealias ProgressHandler = (_ index: Int, _ total: Int, _ message: String) -> Void
 
     /// Provisions hops from exit (last) to entry (first).
-    static func provision(chain: [HopNodeProfile], onProgress: ProgressHandler? = nil) async throws -> [HopReadyReport] {
+    static func provision(
+        chain: [HopNodeProfile],
+        restartHopperd: Bool = false,
+        onProgress: ProgressHandler? = nil
+    ) async throws -> [HopReadyReport] {
         guard !chain.isEmpty else { throw ChainProvisionerError.emptyChain }
 
         let total = chain.count
         var reports: [HopReadyReport] = []
 
-        onProgress?(total - 1, total, "Stopping previous hopperd on all hops…")
-        for hop in chain {
-            await stopNode(hop)
+        if restartHopperd {
+            onProgress?(total - 1, total, "Stopping previous hopperd on all hops…")
+            for hop in chain {
+                await stopNode(hop)
+            }
         }
 
         for i in stride(from: total - 1, through: 0, by: -1) {

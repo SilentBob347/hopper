@@ -31,6 +31,11 @@ final class VPNController: ObservableObject {
         persist()
     }
 
+    func renameServer(id: UUID, name: String) {
+        state.renameServer(id: id, name: name)
+        persist()
+    }
+
     // MARK: - Chains
 
     @discardableResult
@@ -72,7 +77,7 @@ final class VPNController: ObservableObject {
 
     // MARK: - VPN
 
-    func connect() async {
+    func connect(restartHopperd: Bool = false) async {
         guard let entry = state.entryHop else {
             reportError("Select a chain with at least one server (entry → exit).")
             return
@@ -84,7 +89,7 @@ final class VPNController: ObservableObject {
         let hops = state.activeHops
         do {
             provisionStatus = "Provisioning chain (exit → entry)…"
-            _ = try await ChainProvisioner.provision(chain: hops) { [weak self] index, total, message in
+            _ = try await ChainProvisioner.provision(chain: hops, restartHopperd: restartHopperd) { [weak self] index, total, message in
                 Task { @MainActor in
                     self?.provisionStatus = "[\(total - index)/\(total)] \(message)"
                 }
@@ -106,11 +111,11 @@ final class VPNController: ObservableObject {
         manager?.connection.stopVPNTunnel()
     }
 
-    func toggle() async {
+    func toggle(restartHopperd: Bool = false) async {
         if isConnected || isBusy {
             disconnect()
         } else {
-            await connect()
+            await connect(restartHopperd: restartHopperd)
         }
     }
 

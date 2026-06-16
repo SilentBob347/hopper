@@ -12,7 +12,7 @@ struct ChainConfiguratorView: View {
                     Label("Server library", systemImage: "server.rack")
                 }
             } footer: {
-                Text("Scan QR codes here to add servers. Then build chains from those servers below.")
+                Text("Scan QR codes or import JSON here to add servers. Then build chains from those servers below.")
             }
 
             Section("Chains") {

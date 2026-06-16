@@ -81,6 +81,30 @@ scp_to() {
   "${SCP_BASE[@]}" "$src" "${SSH_USER}@${SSH_HOST}:${dst}"
 }
 
+read_identity_public_key() {
+  local pub="${SSH_KEY}.pub"
+  if [[ -f "$pub" ]]; then
+    tr -d '\r\n' < "$pub"
+    return 0
+  fi
+  ssh-keygen -y -f "$SSH_KEY" 2>/dev/null | tr -d '\r\n'
+}
+
+ensure_identity_in_authorized_keys() {
+  local pub
+  pub="$(read_identity_public_key)" || true
+  [[ -n "$pub" ]] || die "Cannot derive public key from ${SSH_KEY} (missing ${SSH_KEY}.pub?)"
+
+  log "Ensuring deploy key is in ${SSH_USER} authorized_keys..."
+  if ssh_cmd "grep -qF $(printf %q "$pub") ~/.ssh/authorized_keys 2>/dev/null"; then
+    log "Deploy key already authorized."
+    return 0
+  fi
+
+  ssh_cmd "mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo $(printf %q "$pub") deploy-\$(hostname -s 2>/dev/null || hostname) >>~/.ssh/authorized_keys"
+  log "Added deploy key to authorized_keys."
+}
+
 detect_remote_arch() {
   local machine
   machine="$(ssh_cmd 'uname -m' 2>/dev/null | tr -d '\r\n')"
@@ -119,6 +143,8 @@ fi
 
 log "Checking SSH connection..."
 ssh_cmd 'echo ok' >/dev/null || die "SSH to ${SSH_USER}@${SSH_HOST} failed"
+
+ensure_identity_in_authorized_keys
 
 log "Creating remote directories..."
 ssh_cmd "mkdir -p ${REMOTE_PATH}/dist"
@@ -174,8 +200,11 @@ import pathlib
 import sys
 
 out_path, payload_raw, host = sys.argv[1:4]
-json.loads(payload_raw)  # validate
-payload_js = json.dumps(payload_raw)
+payload_obj = json.loads(payload_raw)  # validate
+payload_compact = json.dumps(payload_obj, separators=(",", ":"))
+payload_pretty = json.dumps(payload_obj, indent=2)
+payload_js = json.dumps(payload_compact)
+payload_pretty_js = json.dumps(payload_pretty)
 title = f"Hopper — {host}"
 doc = f"""<!DOCTYPE html>
 <html lang="en">
@@ -188,30 +217,77 @@ doc = f"""<!DOCTYPE html>
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0; min-height: 100vh; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 1.25rem;
+      align-items: center; justify-content: center; gap: 1.25rem; padding: 1.5rem;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #1b2f4b; color: #e8f5e9;
     }}
     h1 {{ margin: 0; font-size: 1.25rem; font-weight: 600; }}
-    p {{ margin: 0; max-width: 32rem; text-align: center; opacity: 0.85; font-size: 0.9rem; }}
+    p {{ margin: 0; max-width: 42rem; text-align: center; opacity: 0.85; font-size: 0.9rem; }}
+    .panel {{
+      display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center;
+      gap: 1.5rem; max-width: 56rem; width: 100%;
+    }}
     #qrcode {{
       padding: 1rem; background: #fff; border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35); flex: 0 0 auto;
     }}
-    pre {{
-      margin: 0; padding: 0.75rem 1rem; max-width: 90vw; overflow: auto;
-      font-size: 0.65rem; background: rgba(0,0,0,0.25); border-radius: 8px;
+    .json-block {{
+      flex: 1 1 18rem; min-width: 0; display: flex; flex-direction: column; gap: 0.5rem;
+    }}
+    .json-toolbar {{
+      display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    }}
+    .json-toolbar span {{ font-size: 0.85rem; opacity: 0.85; }}
+    button {{
+      border: none; border-radius: 8px; padding: 0.45rem 0.85rem;
+      font: inherit; font-size: 0.85rem; cursor: pointer;
+      background: #4caf50; color: #fff;
+    }}
+    button:hover {{ background: #43a047; }}
+    button.copied {{ background: #2e7d32; }}
+    textarea {{
+      width: 100%; min-height: 18rem; margin: 0; padding: 0.75rem 1rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.72rem; line-height: 1.45; resize: vertical;
+      background: rgba(0,0,0,0.25); color: #e8f5e9; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
     }}
   </style>
 </head>
 <body>
-  <h1>ɹǝddoH — scan to add hop</h1>
-  <p>Add in chain order: entry → exit</p>
-  <div id="qrcode"></div>
-  <pre id="payload"></pre>
+  <h1>ɹǝddoH — scan or copy JSON</h1>
+  <p>Add in chain order: entry → exit. Scan the QR in the app, or copy the JSON and use Import JSON.</p>
+  <div class="panel">
+    <div id="qrcode"></div>
+    <div class="json-block">
+      <div class="json-toolbar">
+        <span>Hop config JSON</span>
+        <button type="button" id="copy-btn">Copy JSON</button>
+      </div>
+      <textarea id="payload" readonly spellcheck="false"></textarea>
+    </div>
+  </div>
   <script>
     const payload = {payload_js};
-    document.getElementById("payload").textContent = payload;
+    const payloadPretty = {payload_pretty_js};
+    const textarea = document.getElementById("payload");
+    const copyBtn = document.getElementById("copy-btn");
+    textarea.value = payloadPretty;
+    copyBtn.addEventListener("click", async () => {{
+      try {{
+        await navigator.clipboard.writeText(payloadPretty);
+        copyBtn.textContent = "Copied!";
+        copyBtn.classList.add("copied");
+        setTimeout(() => {{
+          copyBtn.textContent = "Copy JSON";
+          copyBtn.classList.remove("copied");
+        }}, 1600);
+      }} catch (err) {{
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+      }}
+    }});
     new QRCode(document.getElementById("qrcode"), {{
       text: payload,
       width: 320,

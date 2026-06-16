@@ -3,6 +3,7 @@ import SwiftUI
 struct ServerLibraryView: View {
     @EnvironmentObject private var vpn: VPNController
     @State private var showScanner = false
+    @State private var showImportJSON = false
 
     var body: some View {
         List {
@@ -10,15 +11,19 @@ struct ServerLibraryView: View {
                 ContentUnavailableView(
                     "No servers",
                     systemImage: "server.rack",
-                    description: Text("Scan a QR code from deploy.sh that was shown in the browser.")
+                    description: Text("Scan a QR code or import JSON from deploy.sh shown in the browser.")
                 )
             } else {
                 ForEach(vpn.state.servers) { server in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(server.displayName).font(.headline)
-                        Text("\(server.trimmedUser)@\(server.trimmedHost):\(server.port)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    NavigationLink {
+                        ServerDetailView(serverID: server.id)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(server.displayName).font(.headline)
+                            Text("\(server.trimmedUser)@\(server.trimmedHost):\(server.port)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .onDelete { offsets in vpn.deleteServers(at: offsets) }
@@ -26,7 +31,8 @@ struct ServerLibraryView: View {
         }
         .navigationTitle("Servers")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button("Import JSON") { showImportJSON = true }
                 Button("Scan QR") { showScanner = true }
             }
         }
@@ -39,6 +45,12 @@ struct ServerLibraryView: View {
                 } catch {
                     vpn.errorMessage = error.localizedDescription
                 }
+            }
+        }
+        .sheet(isPresented: $showImportJSON) {
+            HopImportJSONView { hop in
+                vpn.addServer(hop)
+                showImportJSON = false
             }
         }
     }

@@ -30,6 +30,11 @@ struct AppState: Codable, Equatable {
         servers.append(server)
     }
 
+    mutating func renameServer(id: UUID, name: String) {
+        guard let index = servers.firstIndex(where: { $0.id == id }) else { return }
+        servers[index].name = name
+    }
+
     mutating func removeServers(at offsets: IndexSet) {
         let removed = offsets.compactMap { servers.indices.contains($0) ? servers[$0].id : nil }
         for index in offsets.sorted(by: >) where servers.indices.contains(index) {

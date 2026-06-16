@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var vpn: VPNController
+    @State private var showConnectOptions = false
 
     var body: some View {
         NavigationStack {
@@ -50,9 +51,28 @@ struct ContentView: View {
                     }
 
                     Button(vpn.isConnected ? "Disconnect" : "Connect") {
-                        Task { await vpn.toggle() }
+                        if vpn.isConnected || vpn.isBusy {
+                            vpn.disconnect()
+                        } else {
+                            showConnectOptions = true
+                        }
                     }
                     .disabled(vpn.isBusy || vpn.state.entryHop == nil || vpn.provisionStatus != nil)
+                    .confirmationDialog(
+                        "Connect to chain",
+                        isPresented: $showConnectOptions,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Connect") {
+                            Task { await vpn.connect(restartHopperd: false) }
+                        }
+                        Button("Connect & restart hopperd") {
+                            Task { await vpn.connect(restartHopperd: true) }
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("Restart hopperd on all nodes if you've changed the chain or are having connection issues on the servers. Leave off for faster reconnects.")
+                    }
 
                     Text(statusLabel)
                         .font(.footnote)
@@ -85,7 +105,17 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle(HopConstants.appDisplayName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 6) {
+                        Text(HopConstants.appDisplayName)
+                        Text(HopConstants.appVersion)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
     }
 

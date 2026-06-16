@@ -3,6 +3,10 @@ import Foundation
 enum HopConstants {
     static let appDisplayName = "ɹǝddoH"
 
+    static var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    }
+
     static let appGroupID = "group.com.aengix.hopper"
     static let mainBundleID = "com.aengix.hopper"
     static let tunnelBundleID = "com.aengix.hopper.tunnel"
