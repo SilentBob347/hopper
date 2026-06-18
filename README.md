@@ -4,7 +4,7 @@
   <img src="screenshots/app-icon.png" width="128" alt="ɹǝddoH app icon">
 </p>
 
-iOS VPN client and Linux server stack for a **multi-hop SSH overlay**: traffic is tunneled as raw IP packets over SSH, routed through a chain of nodes, and NAT’d at the exit. One app, one server daemon (`hopperd`), no legacy relays.
+iOS and Android VPN clients plus a Linux server stack for a **multi-hop SSH overlay**: traffic is tunneled as raw IP packets over SSH, routed through a chain of nodes, and NAT’d at the exit. One app, one server daemon (`hopperd`), no legacy relays.
 
 ## Screenshots
 
@@ -32,11 +32,11 @@ iOS VPN client and Linux server stack for a **multi-hop SSH overlay**: traffic i
 
 ```mermaid
 flowchart LR
-  subgraph ios [iOS]
-    App[Hopper app]
-    Ext[Packet tunnel extension]
-    App -->|provision chain| Ext
-    Ext -->|SSH + iptunnel| Entry
+  subgraph clients [Mobile clients]
+    App[iOS / Android app]
+    Tunnel[Packet tunnel]
+    App -->|provision chain| Tunnel
+    Tunnel -->|SSH + iptunnel| Entry
   end
 
   subgraph chain [Server chain entry to exit]
@@ -47,13 +47,14 @@ flowchart LR
     Relay -->|SSH pipe| Exit
   end
 
-  Ext --> Entry
+  Tunnel --> Entry
   Exit -->|TUN + NAT| Internet[(Internet)]
 ```
 
-| Layer        | Role                                                                                             |
-| ------------ | ------------------------------------------------------------------------------------------------ |
-| **iOS**      | L3 VPN (`NEPacketTunnelProvider`). All IPv4 default traffic → overlay client `10.64.0.2`.        |
+| Layer           | Role                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| **iOS**         | L3 VPN (`NEPacketTunnelProvider`). All IPv4 default traffic → overlay client `10.64.0.2`.        |
+| **Android**     | L3 VPN (`VpnService`). Same overlay address and iptunnel data plane as iOS.                      |
 | **iptunnel** | Framed IP over a byte stream (SSH `direct-tcpip` to `127.0.0.1:7400`).                           |
 | **hopperd**  | Userspace routing between ingress (client), `next` (downstream hop), and TUN (internet on exit). |
 | **SSH**      | App → entry hop; each hop → next hop via local `~/.hopper/id_ed25519`.                           |
@@ -69,7 +70,7 @@ Chain order in the app: **first = entry**, **last = exit**.
 
 | Address              | Use                              |
 | -------------------- | -------------------------------- |
-| `10.64.0.2`          | iOS client                       |
+| `10.64.0.2`          | Mobile client (iOS / Android)    |
 | `10.64.0.10` + index | Hop *i* in chain (entry = `.10`) |
 | `0.0.0.0/0`          | Relay → `next`; exit → TUN + NAT |
 
@@ -89,6 +90,12 @@ Chain order in the app: **first = entry**, **last = exit**.
 - Xcode 16+, iOS 17+
 - Apple Developer account with **Network Extension** (Packet Tunnel) entitlement
 - App Group: `group.com.aengix.hopper`
+
+### Android
+
+- Android Studio with SDK 35 (API 26+ devices)
+- JDK 17 (bundled with Android Studio on macOS)
+- Release signing: `~/googlePlayKeys.jks` + `app-android/keystore.properties` (see [Android build & run](#build--run))
 
 ### Dev machine
 
@@ -129,9 +136,9 @@ Environment: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT`, `DEPLOY_KEY`, `DEPLOY_
 
 ### 2. Add hops in the app
 
-1. Open **ɹǝddoH** → **Configure chains** → **Server library** → **Scan QR** (once per machine).
+1. Open **ɹǝddoH** → **Configure chains** → **Server library** → **Scan QR** (once per machine). On Android you can also **Import JSON** from the deploy page.
 2. **New chain** → name it → **Add server…** in order **entry → exit**.
-3. Swipe **Use** or pick the chain on the home screen → **Connect**.
+3. Swipe **Use** (iOS) or tap **Use** (Android), or pick the chain on the home screen → **Connect**.
 
 ### 3. Remove a hop
 
@@ -167,7 +174,7 @@ Stops `hopperd`, removes `~/hopper`, `~/.hopper`, TUN `hopper0`, hopper NAT rule
 | Script                | Who runs it         | Purpose                                                                          |
 | --------------------- | ------------------- | -------------------------------------------------------------------------------- |
 | `configure_server.sh` | Admin / `deploy.sh` | Generate host keypair, `authorized_keys`, optional `setcap`, emit QR JSON        |
-| `start_server.sh`     | iOS via SSH exec    | `--stop-only`, `--trust-pubkey`, write config, start `hopperd`, print ready JSON |
+| `start_server.sh`     | Mobile app via SSH exec | `--stop-only`, `--trust-pubkey`, write config, start `hopperd`, print ready JSON |
 | `deploy.sh`           | Developer           | Build, upload, configure, browser QR                                             |
 | `remove.sh`           | Developer           | Uninstall                                                                        |
 | `build_dist.sh`       | Developer           | Cross-compile `hopperd`                                                          |
@@ -270,10 +277,120 @@ app/
   TunnelCore/          SSHHopConnector, IPTunnelEngine, HopSSH
   Shared/              Models, HopConstants, ProfileStore
   Vendor/Citadel/      SSH client library
+app-android/
+  app/                 Jetpack Compose UI, VpnController, HopperVpnService
+  build-apk.sh         Signed release APK (bumps versionCode)
+  build-aab.sh         Signed Play Store bundle (bumps versionCode)
+  generate-keystore.sh Create hopper-upload signing key
 server/
   cmd/hopperd/         Daemon entrypoint
   internal/hopper/     Config, session routing, NAT, SSH next-hop
   internal/iptunnel/   Frame protocol + Linux TUN
+```
+
+---
+
+## Android app reference
+
+Same screens and flow as iOS: home (chain + connect), chain configurator, chain detail, server library (QR scan + JSON import).
+
+Profiles persist in app-private storage (`hopper-profiles.json`). QR payload format is identical to iOS (v2 JSON above).
+
+### Build & run
+
+Open the project in Android Studio:
+
+```bash
+cd app-android
+open -a "Android Studio" .
+```
+
+Or build a debug APK from the command line:
+
+```bash
+cd app-android
+./gradlew assembleDebug
+```
+
+Output: `app/build/outputs/apk/debug/app-debug.apk`
+
+Install on a connected device:
+
+```bash
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+On first **Connect**, Android prompts for VPN permission — required for the tunnel.
+
+### Release signing
+
+Release builds use the same keystore layout as other AENGIX Android apps. The keystore lives outside the repo:
+
+```
+~/googlePlayKeys.jks
+```
+
+Create `app-android/keystore.properties` (gitignored) before running the release scripts:
+
+```properties
+storePassword=your_store_password
+keyPassword=your_key_password
+keyAlias=hopper-upload
+```
+
+Hopper uses alias `hopper-upload` in the shared AENGIX keystore (`upload` is reserved for the TV browser app).
+
+To generate a new Hopper signing key (adds to existing keystore or creates a fresh one):
+
+```bash
+cd app-android
+./generate-keystore.sh
+```
+
+Or manually:
+
+```bash
+keytool -genkeypair -v \
+  -keystore ~/googlePlayKeys.jks \
+  -alias hopper-upload \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 10000 \
+  -storepass YOUR_STORE_PASSWORD \
+  -keypass YOUR_KEY_PASSWORD \
+  -dname "CN=Hopper, OU=Mobile, O=AENGIX SL, L=Barcelona, ST=Barcelona, C=ES"
+```
+
+### Release build scripts
+
+Both scripts auto-detect the Android Studio JDK, validate signing credentials, **bump `versionCode` by 1**, and produce a signed artifact:
+
+```bash
+cd app-android
+./build-apk.sh    # app/build/outputs/apk/release/app-release.apk
+./build-aab.sh    # app/build/outputs/bundle/release/app-release.aab
+```
+
+For manual Gradle release builds (without auto bump):
+
+```bash
+cd app-android
+./gradlew assembleRelease   # APK
+./gradlew bundleRelease     # AAB
+```
+
+### Android project layout
+
+```
+app-android/
+  app/src/main/java/com/aengix/hopper/
+    ui/                  Compose screens
+    vpn/                 VpnController, HopperVpnService, TunnelCoordinator
+    ssh/                 HopSSH, SSHHopConnector (SSHJ)
+    tunnel/              IPTunnelFrame, IPTunnelEngine
+    provision/           ChainProvisioner
+    model/               AppState, HopNodeProfile, HopChain
+    data/                ProfileStore, HopQRParser
 ```
 
 ---
@@ -285,12 +402,13 @@ server/
 | VPN connects, no internet | Exit NAT: `iptables -t nat -L`; `hopper.log` on exit; re-connect to re-provision |
 | Chain provision fails     | SSH from app to each hop; `start_server.sh` on server; keys in `authorized_keys` |
 | `hopperd` won’t start     | Root/`setcap cap_net_admin`; read `~/.hopper/hopper.log`                         |
-| Extension errors          | App Group + embedded extension; delete app and reinstall VPN profile             |
+| Extension / VPN errors  | iOS: App Group + embedded extension; reinstall VPN profile. Android: revoke/re-grant VPN permission; check logcat `Hopper` |
 
 **Logs**
 
 - Server: `~/.hopper/hopper.log`
 - iOS: Xcode → Window → Devices → open console for device, filter `Hopper`
+- Android: `adb logcat -s Hopper`
 
 **Manual stop on server**
 

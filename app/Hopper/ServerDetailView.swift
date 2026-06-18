@@ -5,6 +5,7 @@ struct ServerDetailView: View {
     let serverID: UUID
 
     @State private var name: String = ""
+    @State private var showExport = false
 
     private var server: HopNodeProfile? {
         vpn.state.server(id: serverID)
@@ -29,6 +30,10 @@ struct ServerDetailView: View {
                             LabeledContent("Install path", value: server.installDir)
                         }
                     }
+
+                    Section("Share") {
+                        Button("Export…") { showExport = true }
+                    }
                 }
             } else {
                 ContentUnavailableView("Server not found", systemImage: "server.rack")
@@ -38,6 +43,11 @@ struct ServerDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             name = server?.name ?? ""
+        }
+        .sheet(isPresented: $showExport) {
+            if let server {
+                ServerExportView(server: server)
+            }
         }
     }
 }
