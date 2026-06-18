@@ -1,7 +1,5 @@
 package com.aengix.hopper.ui
 
-import android.content.Intent
-import android.net.VpnService
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,7 +36,7 @@ fun HomeScreen(
     vpn: VpnController,
     onConfigureChains: () -> Unit,
     onChainDetail: (String) -> Unit,
-    onRequestVpnPermission: (Intent) -> Unit,
+    onRequestVpnConnect: (restartHopperd: Boolean) -> Unit,
 ) {
     val state by vpn.state.collectAsState()
     val vpnStatus by vpn.vpnStatus.collectAsState()
@@ -49,7 +47,7 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("${HopConstants.APP_DISPLAY_NAME} 1.0.0") })
+            TopAppBar(title = { Text("${HopConstants.APP_DISPLAY_NAME} ${HopConstants.appVersion(context)}") })
         },
     ) { padding ->
         Column(
@@ -160,13 +158,11 @@ fun HomeScreen(
                     )
                     TextButton(onClick = {
                         showConnectOptions = false
-                        maybePrepareVpn(context, onRequestVpnPermission)
-                        vpn.connect(restartHopperd = false)
+                        onRequestVpnConnect(false)
                     }) { Text("Connect") }
                     TextButton(onClick = {
                         showConnectOptions = false
-                        maybePrepareVpn(context, onRequestVpnPermission)
-                        vpn.connect(restartHopperd = true)
+                        onRequestVpnConnect(true)
                     }) { Text("Connect & restart hopperd") }
                     TextButton(onClick = { showConnectOptions = false }) { Text("Cancel") }
                 }
@@ -174,10 +170,6 @@ fun HomeScreen(
             confirmButton = {},
         )
     }
-}
-
-private fun maybePrepareVpn(context: android.content.Context, onRequestVpnPermission: (Intent) -> Unit) {
-    VpnService.prepare(context)?.let(onRequestVpnPermission)
 }
 
 @Composable

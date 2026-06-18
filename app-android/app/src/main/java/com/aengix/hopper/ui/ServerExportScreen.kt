@@ -6,9 +6,9 @@ import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -61,7 +62,6 @@ fun ServerExportScreen(
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp)
                 .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -70,15 +70,17 @@ fun ServerExportScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 16.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
             )
 
             if (qrBitmap != null) {
                 Image(
                     bitmap = qrBitmap.asImageBitmap(),
                     contentDescription = "Server config QR code",
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier
-                        .size(260.dp)
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .background(androidx.compose.ui.graphics.Color.White)
                         .padding(16.dp),
@@ -87,7 +89,7 @@ fun ServerExportScreen(
                 Text(
                     "Could not generate QR code.",
                     color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(vertical = 24.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
                 )
             }
 
@@ -96,7 +98,10 @@ fun ServerExportScreen(
                     copyToClipboard(context, configJson)
                     copied = true
                 },
-                modifier = Modifier.padding(top = 20.dp),
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 20.dp)
+                    .fillMaxWidth(),
             ) {
                 Text(if (copied) "Copied" else "Copy config")
             }

@@ -1,5 +1,7 @@
 package com.aengix.hopper.model
 
+import android.content.Context
+
 object HopConstants {
     const val APP_DISPLAY_NAME = "ɹǝddoH"
     const val PROFILE_STORE_FILE_NAME = "hopper-profiles.json"
@@ -17,4 +19,9 @@ object HopConstants {
     const val DEFAULT_INSTALL_DIR = "~/hopper"
 
     const val OVERLAY_NODE_OCTET = 10
+
+    fun appVersion(context: Context): String = runCatching {
+        @Suppress("DEPRECATION")
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName
+    }.getOrNull() ?: "?"
 }

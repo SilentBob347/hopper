@@ -23,6 +23,8 @@ class VpnController(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(ProfileStore.load())
     val state: StateFlow<AppState> = _state.asStateFlow()
 
+    var onVpnPermissionRequired: ((Intent) -> Unit)? = null
+
     private val _vpnStatus = MutableStateFlow(VpnStatus.Disconnected)
     val vpnStatus: StateFlow<VpnStatus> = _vpnStatus.asStateFlow()
 
@@ -124,8 +126,14 @@ class VpnController(application: Application) : AndroidViewModel(application) {
                 val prepareIntent = VpnService.prepare(context)
                 if (prepareIntent != null) {
                     PendingVpnConnect.pendingHopJson = TunnelBootstrap.hopJson(entry)
-                    PendingVpnConnect.requestPermission = true
                     _provisionStatus.value = null
+                    if (PendingVpnConnect.permissionGranted) {
+                        completePendingConnect()
+                    } else {
+                        TunnelLog.info("VPN permission required — requesting consent")
+                        onVpnPermissionRequired?.invoke(prepareIntent)
+                            ?: TunnelLog.error("VPN permission required but no handler registered")
+                    }
                     return@launch
                 }
 
@@ -139,9 +147,14 @@ class VpnController(application: Application) : AndroidViewModel(application) {
     }
 
     fun onVpnPermissionGranted() {
+        PendingVpnConnect.permissionGranted = true
+        TunnelLog.info("VPN permission granted")
+        completePendingConnect()
+    }
+
+    private fun completePendingConnect() {
         val hopJson = PendingVpnConnect.pendingHopJson ?: return
-        PendingVpnConnect.pendingHopJson = null
-        PendingVpnConnect.requestPermission = false
+        PendingVpnConnect.clear()
         val hop = kotlinx.serialization.json.Json.decodeFromString(HopNodeProfile.serializer(), hopJson)
         startVpnService(hop)
     }
@@ -192,5 +205,10 @@ class VpnController(application: Application) : AndroidViewModel(application) {
 
 object PendingVpnConnect {
     var pendingHopJson: String? = null
-    var requestPermission: Boolean = false
+    @Volatile var permissionGranted: Boolean = false
+
+    fun clear() {
+        pendingHopJson = null
+        permissionGranted = false
+    }
 }

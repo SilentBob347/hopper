@@ -1,11 +1,6 @@
 package com.aengix.hopper.ui
 
-import android.content.Intent
-import android.net.VpnService
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -27,8 +22,8 @@ object Routes {
 fun HopperNavHost(
     navController: NavHostController = rememberNavController(),
     vpn: VpnController,
-    onRequestVpnPermission: (Intent) -> Unit,
-    onRequestCameraPermission: () -> Boolean,
+    onRequestVpnConnect: (restartHopperd: Boolean) -> Unit,
+    onRequestCameraPermission: (onGranted: () -> Unit) -> Unit,
 ) {
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
@@ -38,7 +33,7 @@ fun HopperNavHost(
                 onChainDetail = { chainId ->
                     navController.navigate(Routes.chainDetail(chainId))
                 },
-                onRequestVpnPermission = onRequestVpnPermission,
+                onRequestVpnConnect = onRequestVpnConnect,
             )
         }
         composable(Routes.CHAINS) {

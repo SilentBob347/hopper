@@ -17,13 +17,16 @@ struct ServerExportView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
 
                 if let qr = HopQRCodeImage.make(from: configJSON) {
                     Image(uiImage: qr)
                         .interpolation(.none)
                         .resizable()
                         .scaledToFit()
-                        .frame(maxWidth: 260, maxHeight: 260)
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(1, contentMode: .fit)
                         .padding(16)
                         .background(Color.white)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -31,6 +34,7 @@ struct ServerExportView: View {
                 } else {
                     Text("Could not generate QR code.")
                         .foregroundStyle(.red)
+                        .padding(.horizontal, 16)
                 }
 
                 Button(copied ? "Copied" : "Copy config") {
@@ -38,10 +42,11 @@ struct ServerExportView: View {
                     copied = true
                 }
                 .buttonStyle(.borderedProminent)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 16)
 
                 Spacer(minLength: 0)
             }
-            .padding()
             .navigationTitle("Export")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
