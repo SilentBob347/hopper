@@ -26,6 +26,16 @@ iOS and Android VPN clients plus a Linux server stack for a **multi-hop SSH over
   <img src="screenshots/ipad/04-chains.png" width="280" alt="Chains list">
 </p>
 
+### Android (phone)
+
+<p align="center">
+  <img src="screenshots/android/phone/01-home.png" width="200" alt="Home — chain, connect, and route">
+  <img src="screenshots/android/phone/02-chains.png" width="200" alt="Chains list">
+  <img src="screenshots/android/phone/03-chain-detail.png" width="200" alt="Chain detail — entry to exit hops">
+  <img src="screenshots/android/phone/04-servers.png" width="200" alt="Server library">
+  <img src="screenshots/android/phone/05-server-detail.png" width="200" alt="Server detail">
+</p>
+
 ---
 
 ## How it works

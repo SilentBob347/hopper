@@ -24,8 +24,9 @@ fun HopperNavHost(
     vpn: VpnController,
     onRequestVpnConnect: (restartHopperd: Boolean) -> Unit,
     onRequestCameraPermission: (onGranted: () -> Unit) -> Unit,
+    startDestination: String = Routes.HOME,
 ) {
-    NavHost(navController = navController, startDestination = Routes.HOME) {
+    NavHost(navController = navController, startDestination = startDestination) {
         composable(Routes.HOME) {
             HomeScreen(
                 vpn = vpn,

@@ -1,0 +1,71 @@
+{
+  "servers": [
+    {
+      "id": "srv-ams-entry",
+      "name": "ams-entry",
+      "host": "203.0.113.10",
+      "port": 22,
+      "user": "root",
+      "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\nMIGEAgEAMBAGByqGSM49AgEGBSuBBAAK\n-----END OPENSSH PRIVATE KEY-----\n",
+      "hostKeys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDemoHostKeyAmsEntryOnly"
+      ],
+      "installDir": "/root/hopper"
+    },
+    {
+      "id": "srv-fra-relay",
+      "name": "fra-relay",
+      "host": "203.0.113.20",
+      "port": 22,
+      "user": "root",
+      "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\nMIGEAgEAMBAGByqGSM49AgEGBSuBBAAK\n-----END OPENSSH PRIVATE KEY-----\n",
+      "hostKeys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDemoHostKeyFraRelayOnly"
+      ],
+      "installDir": "/root/hopper"
+    },
+    {
+      "id": "srv-nyc-exit",
+      "name": "nyc-exit",
+      "host": "203.0.113.30",
+      "port": 22,
+      "user": "root",
+      "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\nMIGEAgEAMBAGByqGSM49AgEGBSuBBAAK\n-----END OPENSSH PRIVATE KEY-----\n",
+      "hostKeys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDemoHostKeyNycExitOnly"
+      ],
+      "installDir": "/root/hopper"
+    },
+    {
+      "id": "srv-lon-spare",
+      "name": "lon-spare",
+      "host": "203.0.113.40",
+      "port": 2222,
+      "user": "hopper",
+      "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\nMIGEAgEAMBAGByqGSM49AgEGBSuBBAAK\n-----END OPENSSH PRIVATE KEY-----\n",
+      "hostKeys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDemoHostKeyLonSpareOnly"
+      ],
+      "installDir": "~/hopper"
+    }
+  ],
+  "chains": [
+    {
+      "id": "chain-eu-us",
+      "name": "EU → US",
+      "hopIDs": [
+        "srv-ams-entry",
+        "srv-fra-relay",
+        "srv-nyc-exit"
+      ]
+    },
+    {
+      "id": "chain-direct",
+      "name": "Direct exit",
+      "hopIDs": [
+        "srv-nyc-exit"
+      ]
+    }
+  ],
+  "selectedChainID": "chain-eu-us"
+}

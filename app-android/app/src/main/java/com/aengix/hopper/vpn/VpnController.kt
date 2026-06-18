@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.VpnService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.aengix.hopper.data.DemoProfiles
 import com.aengix.hopper.data.ProfileStore
 import com.aengix.hopper.model.AppState
 import com.aengix.hopper.model.HopNodeProfile
@@ -78,6 +79,10 @@ class VpnController(application: Application) : AndroidViewModel(application) {
 
     fun selectChain(id: String?) {
         updateState { it.selectChain(id) }
+    }
+
+    fun loadDemoData() {
+        updateState { DemoProfiles.appState() }
     }
 
     fun renameChain(id: String, name: String) {

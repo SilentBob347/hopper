@@ -14,10 +14,15 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.navigation.compose.rememberNavController
 import com.aengix.hopper.ui.HopperNavHost
+import com.aengix.hopper.ui.Routes
 import com.aengix.hopper.util.TunnelLog
 import com.aengix.hopper.vpn.VpnController
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        const val EXTRA_ROUTE = "route"
+        const val EXTRA_SEED_DEMO = "seed_demo"
+    }
     private val vpnController: VpnController by viewModels()
 
     private val vpnPermissionLauncher = registerForActivityResult(
@@ -84,6 +89,11 @@ class MainActivity : ComponentActivity() {
             vpnPermissionLauncher.launch(intent)
         }
 
+        val startDestination = resolveStartDestination(intent)
+        if (intent?.getBooleanExtra(EXTRA_SEED_DEMO, false) == true) {
+            vpnController.loadDemoData()
+        }
+
         setContent {
             val navController = rememberNavController()
             MaterialTheme {
@@ -93,9 +103,21 @@ class MainActivity : ComponentActivity() {
                         vpn = vpnController,
                         onRequestVpnConnect = ::requestVpnConnect,
                         onRequestCameraPermission = ::requestCameraPermission,
+                        startDestination = startDestination,
                     )
                 }
             }
+        }
+    }
+
+    private fun resolveStartDestination(intent: Intent?): String {
+        val route = intent?.getStringExtra(EXTRA_ROUTE)?.trim().orEmpty()
+        if (route.isEmpty()) return Routes.HOME
+        return when (route) {
+            "home" -> Routes.HOME
+            "chains" -> Routes.CHAINS
+            "servers" -> Routes.SERVERS
+            else -> route
         }
     }
 
