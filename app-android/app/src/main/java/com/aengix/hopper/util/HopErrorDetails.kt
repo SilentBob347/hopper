@@ -28,6 +28,11 @@ object HopErrorDetails {
         ) {
             return "SSH connection closed unexpectedly. Wait 5 seconds before reconnecting. ($rendered)"
         }
+        if (rendered.contains("ECONNABORTED", ignoreCase = true) ||
+            rendered.contains("connection abort", ignoreCase = true)
+        ) {
+            return "Network connection aborted — if another VPN is active, wait a moment or disconnect it, then retry. ($rendered)"
+        }
         if (rendered.contains("connectTimeout", ignoreCase = true) ||
             rendered.contains("timed out", ignoreCase = true)
         ) {

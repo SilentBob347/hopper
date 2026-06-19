@@ -11,6 +11,8 @@ object HopConstants {
     const val TUNNEL_IPV4_MASK = "255.255.255.0"
     const val TUNNEL_REMOTE_ADDRESS = "10.64.0.1"
     const val TUNNEL_IPV4_SUBNET = "10.64.0.0/24"
+    /** Dummy IPv6 address used to sinkhole IPv6 on Android versions before 10. */
+    const val TUNNEL_IPV6_SINKHOLE = "fd00::1"
 
     const val HOPPER_PORT = 7400
     const val TUNNEL_MTU = 1280

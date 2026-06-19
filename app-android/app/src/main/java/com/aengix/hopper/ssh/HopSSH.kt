@@ -2,6 +2,8 @@ package com.aengix.hopper.ssh
 
 import com.aengix.hopper.model.HopConstants
 import com.aengix.hopper.model.HopNodeProfile
+import com.aengix.hopper.util.HopErrorDetails
+import com.aengix.hopper.util.IPv4Only
 import com.aengix.hopper.util.TunnelLog
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.DirectConnection
@@ -9,9 +11,7 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier
 import net.schmizz.sshj.userauth.UserAuthException
 import java.io.InputStream
 import java.io.OutputStream
-import java.net.InetSocketAddress
 import java.net.Socket
-import javax.net.SocketFactory
 
 class HopSSHException(message: String) : Exception(message)
 
@@ -21,25 +21,43 @@ object HopSSH {
         onProtect: ((Socket) -> Boolean)? = null,
     ): SSHClient {
         HopSecurityProviders.ensureRegistered()
-        val sshClient = SSHClient()
-        sshClient.addHostKeyVerifier(PromiscuousVerifier())
+        val host = IPv4Only.resolveHost(node.trimmedHost)
+        val retryDelaysMs = listOf(0L, 300L, 700L, 1500L)
+        var lastError: Throwable? = null
 
-        if (onProtect != null) {
-            sshClient.socketFactory = protectingSocketFactory(onProtect)
+        for ((attempt, delayMs) in retryDelaysMs.withIndex()) {
+            if (delayMs > 0) {
+                TunnelLog.info("SSH connect retry ${attempt + 1}/${retryDelaysMs.size} after ${delayMs}ms")
+                Thread.sleep(delayMs)
+            }
+
+            val sshClient = SSHClient()
+            sshClient.addHostKeyVerifier(PromiscuousVerifier())
+            sshClient.socketFactory = IPv4Only.socketFactory(onProtect)
+
+            try {
+                TunnelLog.info("SSH connect to ${node.trimmedUser}@$host:${node.port}")
+                sshClient.connect(host, node.port)
+                sshClient.timeout = 60_000
+
+                val keyProvider = HopKeyProviders.keyProviderFor(node.privateKey)
+                sshClient.authPublickey(node.trimmedUser, keyProvider)
+                return sshClient
+            } catch (error: UserAuthException) {
+                runCatching { sshClient.disconnect() }
+                TunnelLog.error("SSH auth failed for ${node.trimmedUser}@${node.trimmedHost}: ${error.message}")
+                throw error
+            } catch (error: Throwable) {
+                lastError = error
+                runCatching { sshClient.disconnect() }
+                if (!isRetryableConnectError(error) || attempt == retryDelaysMs.lastIndex) {
+                    throw error
+                }
+                TunnelLog.info("SSH connect attempt ${attempt + 1} failed: ${HopErrorDetails.describe(error)}")
+            }
         }
 
-        TunnelLog.info("SSH connect to ${node.trimmedUser}@${node.trimmedHost}:${node.port}")
-        sshClient.connect(node.trimmedHost, node.port)
-        sshClient.timeout = 60_000
-
-        val keyProvider = HopKeyProviders.keyProviderFor(node.privateKey)
-        try {
-            sshClient.authPublickey(node.trimmedUser, keyProvider)
-        } catch (error: UserAuthException) {
-            TunnelLog.error("SSH auth failed for ${node.trimmedUser}@${node.trimmedHost}: ${error.message}")
-            throw error
-        }
-        return sshClient
+        throw lastError ?: HopSSHException("SSH connect failed")
     }
 
     fun runCommand(sshClient: SSHClient, command: String): String {
@@ -69,25 +87,13 @@ object HopSSH {
         }
     }
 
-    private fun protectingSocketFactory(onProtect: (Socket) -> Boolean): SocketFactory {
-        return object : SocketFactory() {
-            override fun createSocket(): Socket = Socket().also { onProtect(it) }
-
-            override fun createSocket(host: String, port: Int): Socket =
-                createSocket().also { it.connect(InetSocketAddress(host, port), 60_000) }
-
-            override fun createSocket(host: String, port: Int, localHost: java.net.InetAddress, localPort: Int): Socket =
-                createSocket().also {
-                    it.bind(InetSocketAddress(localHost, localPort))
-                    it.connect(InetSocketAddress(host, port), 60_000)
-                }
-
-            override fun createSocket(address: java.net.InetAddress, port: Int): Socket =
-                createSocket(address.hostAddress, port)
-
-            override fun createSocket(address: java.net.InetAddress, port: Int, localAddress: java.net.InetAddress, localPort: Int): Socket =
-                createSocket(address.hostAddress, port, localAddress, localPort)
-        }
+    private fun isRetryableConnectError(error: Throwable): Boolean {
+        val rendered = error.toString() + (error.message.orEmpty())
+        return rendered.contains("ECONNABORTED", ignoreCase = true) ||
+            rendered.contains("connection abort", ignoreCase = true) ||
+            rendered.contains("Connection reset", ignoreCase = true) ||
+            rendered.contains("ETIMEDOUT", ignoreCase = true) ||
+            rendered.contains("ENETUNREACH", ignoreCase = true)
     }
 }
 

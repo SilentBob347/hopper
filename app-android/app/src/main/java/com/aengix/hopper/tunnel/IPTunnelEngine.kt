@@ -2,6 +2,7 @@ package com.aengix.hopper.tunnel
 
 import com.aengix.hopper.ssh.SSHByteStream
 import com.aengix.hopper.util.HopErrorDetails
+import com.aengix.hopper.util.IPv4Only
 import com.aengix.hopper.util.TunnelLog
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -11,6 +12,7 @@ class IPTunnelEngine(
     private val stream: SSHByteStream,
     private val tunInput: FileInputStream,
     private val tunOutput: FileOutputStream,
+    private val dropNonIPv4: Boolean = false,
 ) {
     private val running = AtomicBoolean(false)
     private val threads = mutableListOf<Thread>()
@@ -43,6 +45,9 @@ class IPTunnelEngine(
                 val read = tunInput.read(buffer)
                 if (read <= 0) {
                     Thread.sleep(5)
+                    continue
+                }
+                if (dropNonIPv4 && !IPv4Only.isIPv4Packet(buffer, read)) {
                     continue
                 }
                 val frame = IPTunnelFrame(IPTunnelFrameType.DATA, buffer.copyOf(read))
