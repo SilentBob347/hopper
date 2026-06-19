@@ -16,14 +16,20 @@ import com.aengix.hopper.util.HopErrorDetails
 import com.aengix.hopper.util.TunnelLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 
 class HopperVpnService : VpnService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val coordinator = TunnelCoordinator(this)
+    private val tunnelMutex = Mutex()
+    private var tunnelJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -47,7 +53,8 @@ class HopperVpnService : VpnService() {
                 startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.vpn_notification_connecting)))
                 ProfileStore.clearLastTunnelError()
                 VpnStatusBus.update(VpnStatus.Connecting)
-                scope.launch { runTunnel(hop) }
+                tunnelJob?.cancel()
+                tunnelJob = scope.launch { runTunnel(hop) }
             }
             ACTION_DISCONNECT -> {
                 stopTunnelInternal(userInitiated = true)
@@ -69,25 +76,32 @@ class HopperVpnService : VpnService() {
     }
 
     private suspend fun runTunnel(hop: HopNodeProfile) {
-        coordinator.onSessionFailure = { message ->
-            scope.launch {
-                failTunnel(message)
+        tunnelMutex.withLock {
+            coordinator.onSessionFailure = { message ->
+                scope.launch {
+                    failTunnel(message)
+                    stopSelf()
+                }
+            }
+
+            try {
+                val tunInterface = coordinator.prepare(hop)
+                startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.vpn_notification_text)))
+                coordinator.startRelay(tunInterface)
+                VpnStatusBus.update(VpnStatus.Connected)
+            } catch (error: CancellationException) {
+                coordinator.stop()
+                throw error
+            } catch (error: Throwable) {
+                failTunnel(HopErrorDetails.describe(error))
                 stopSelf()
             }
-        }
-
-        try {
-            val tunInterface = coordinator.prepare(hop)
-            startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.vpn_notification_text)))
-            coordinator.startRelay(tunInterface)
-            VpnStatusBus.update(VpnStatus.Connected)
-        } catch (error: Throwable) {
-            failTunnel(HopErrorDetails.describe(error))
-            stopSelf()
         }
     }
 
     private fun stopTunnelInternal(userInitiated: Boolean) {
+        tunnelJob?.cancel()
+        tunnelJob = null
         coordinator.stop()
         if (!userInitiated) {
             ProfileStore.saveLastTunnelError("Tunnel stopped unexpectedly")

@@ -7,8 +7,8 @@ import com.aengix.hopper.model.HopNodeProfile
 import com.aengix.hopper.ssh.SSHHopConnector
 import com.aengix.hopper.ssh.SSHHopSession
 import com.aengix.hopper.tunnel.IPTunnelEngine
-import com.aengix.hopper.util.HopErrorDetails
 import com.aengix.hopper.util.TunnelLog
+import kotlinx.coroutines.delay
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.FileInputStream
@@ -24,13 +24,7 @@ class TunnelCoordinator(
     private var ipEngine: IPTunnelEngine? = null
     private var tunInterface: ParcelFileDescriptor? = null
 
-    fun prepare(hop: HopNodeProfile): ParcelFileDescriptor {
-        TunnelLog.info("SSH entry ${hop.trimmedUser}@${hop.trimmedHost}:${hop.port}")
-        val session = SSHHopConnector.connect(entry = hop) { socket ->
-            vpnService.protect(socket)
-        }
-        sshSession = session
-
+    suspend fun prepare(hop: HopNodeProfile): ParcelFileDescriptor {
         val builder = vpnService.Builder()
         builder.setSession(HopConstants.APP_DISPLAY_NAME)
         builder.setMtu(HopConstants.TUNNEL_MTU)
@@ -46,10 +40,26 @@ class TunnelCoordinator(
             TunnelLog.info("Entry hop excluded from routes: $entryIp")
         }
 
-        val iface = builder.establish()
-            ?: throw TunnelCoordinatorException("Could not establish VPN interface.")
+        val iface = establishInterface(builder)
         tunInterface = iface
+
+        TunnelLog.info("SSH entry ${hop.trimmedUser}@${hop.trimmedHost}:${hop.port}")
+        sshSession = SSHHopConnector.connect(entry = hop) { socket ->
+            vpnService.protect(socket)
+        }
         return iface
+    }
+
+    private suspend fun establishInterface(builder: VpnService.Builder): ParcelFileDescriptor {
+        val retryDelaysMs = listOf(0L, 300L, 700L, 1500L)
+        for ((attempt, delayMs) in retryDelaysMs.withIndex()) {
+            if (delayMs > 0) {
+                TunnelLog.info("VPN establish retry ${attempt + 1}/${retryDelaysMs.size} after ${delayMs}ms")
+                delay(delayMs)
+            }
+            builder.establish()?.let { return it }
+        }
+        throw TunnelCoordinatorException(VPN_INTERFACE_UNAVAILABLE)
     }
 
     fun startRelay(tunInterface: ParcelFileDescriptor) {
@@ -89,6 +99,9 @@ class TunnelCoordinator(
         }.getOrNull()
     }
 }
+
+const val VPN_INTERFACE_UNAVAILABLE =
+    "Could not establish VPN interface. If another VPN is active, disconnect it or confirm the system prompt to switch, then try again."
 
 class TunnelCoordinatorException(message: String) : Exception(message)
 
