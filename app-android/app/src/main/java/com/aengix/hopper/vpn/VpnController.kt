@@ -79,12 +79,14 @@ class VpnController(application: Application) : AndroidViewModel(application) {
         port: Int,
         user: String,
         auth: com.aengix.hopper.provision.ServerDeployAuth,
+        onLog: ((String) -> Unit)? = null,
     ) {
         val result = com.aengix.hopper.provision.ServerDeployer.deploy(
             host = host,
             port = port,
             user = user,
             auth = auth,
+            onLog = onLog,
         )
         updateState { state ->
             var next = state

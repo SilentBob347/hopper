@@ -65,18 +65,23 @@ def refresh_binary_from_release() -> bool:
     dest = hopper_binary_path()
     url = f"{base}/hopperd-linux-{detect_arch()}"
     log(f"Downloading {url}...")
+    tmp = dest.with_name(dest.name + ".download")
     try:
         if shutil.which("curl"):
-            subprocess.run(["curl", "-fsSL", "-o", str(dest), url], check=True)
+            subprocess.run(["curl", "-fsSL", "-o", str(tmp), url], check=True)
         elif shutil.which("wget"):
-            subprocess.run(["wget", "-q", "-O", str(dest), url], check=True)
+            subprocess.run(["wget", "-q", "-O", str(tmp), url], check=True)
         else:
             return False
     except subprocess.CalledProcessError:
-        dest.unlink(missing_ok=True)
+        tmp.unlink(missing_ok=True)
         return False
+    if not tmp.is_file() or tmp.stat().st_size == 0:
+        tmp.unlink(missing_ok=True)
+        return False
+    tmp.replace(dest)
     dest.chmod(0o755)
-    return dest.is_file() and dest.stat().st_size > 0
+    return True
 
 
 def port_listening(port: int) -> bool:

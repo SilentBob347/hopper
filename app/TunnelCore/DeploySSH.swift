@@ -11,8 +11,12 @@ enum DeploySSH {
         password: String?,
         privateKeyPEM: String,
         publicKeyLine: String,
-        installDir: String
+        installDir: String,
+        onLog: (@Sendable (String) -> Void)? = nil
     ) async throws -> String {
+        let log = onLog ?? { _ in }
+        log("Connecting to \(user)@\(host):\(port)…")
+
         let client: SSHClient
         if let password {
             client = try await connect(host: host, port: port, user: user, password: password)
@@ -22,15 +26,18 @@ enum DeploySSH {
 
         defer { Task { try? await client.close() } }
 
+        log("Ensuring deploy key is in authorized_keys…")
         let authCmd = authorizedKeysCommand(publicKeyLine: publicKeyLine, host: host)
         _ = try await HopSSH.runCommand(on: client, authCmd)
+        log("Deploy key authorized.")
 
+        log("Running remote install…")
         let installCmd = installCommand(
             host: host,
             port: port,
             installDir: installDir
         )
-        return try await HopSSH.runCommand(on: client, installCmd)
+        return try await HopSSH.runCommand(on: client, installCmd, onLine: log)
     }
 
     private static func connect(host: String, port: Int, user: String, password: String) async throws -> SSHClient {

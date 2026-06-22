@@ -44,13 +44,15 @@ final class VPNController: ObservableObject {
         host: String,
         port: Int,
         user: String,
-        auth: ServerDeployAuth
+        auth: ServerDeployAuth,
+        onLog: (@Sendable (String) -> Void)? = nil
     ) async throws {
         let result = try await ServerDeployer.deploy(
             host: host,
             port: port,
             user: user,
-            auth: auth
+            auth: auth,
+            onLog: onLog
         )
         if let newKey = result.newDeployKey {
             state.addDeployKey(newKey)

@@ -25,6 +25,7 @@ Options:
   --port PORT         SSH port for profile (default: 22)
   --remove            Remove hopper from this host
   --skip-sync         Do not pull server tree from git (use files already on disk)
+  --skip-binary       Do not download hopperd (use dist/ binary already on disk)
   -y, --yes           Skip confirmation for --remove
   -h, --help          Show help
 
@@ -37,6 +38,7 @@ CONFIGURE=0
 REMOVE=0
 YES=0
 SKIP_SYNC=0
+SKIP_BINARY=0
 HOST=""
 PORT="22"
 REF="${HOPPER_REF}"
@@ -50,6 +52,7 @@ while [[ $# -gt 0 ]]; do
     --port) PORT="$2"; shift 2 ;;
     --remove) REMOVE=1; shift ;;
     --skip-sync) SKIP_SYNC=1; shift ;;
+    --skip-binary) SKIP_BINARY=1; shift ;;
     -y | --yes) YES=1; shift ;;
     -h | --help) usage; exit 0 ;;
     *) die "Unknown option: $1" ;;
@@ -174,6 +177,7 @@ ensure_hopper_cli
 
 args=(install)
 [[ "$SKIP_SYNC" -eq 0 ]] && args+=(--ref "${REF}")
+[[ "$SKIP_BINARY" -eq 1 ]] && args+=(--skip-binary)
 [[ "$CONFIGURE" -eq 1 ]] && args+=(--configure)
 [[ -n "$HOST" ]] && args+=(--host "$HOST")
 [[ -n "$PORT" ]] && args+=(--port "$PORT")

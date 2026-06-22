@@ -36,7 +36,8 @@ enum ServerDeployer {
         port: Int = HopConstants.defaultSSHPort,
         user: String = "root",
         installDir: String = HopConstants.defaultInstallDir,
-        auth: ServerDeployAuth
+        auth: ServerDeployAuth,
+        onLog: (@Sendable (String) -> Void)? = nil
     ) async throws -> Result {
         let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedHost.isEmpty else { throw ServerDeployerError.missingHost }
@@ -86,7 +87,8 @@ enum ServerDeployer {
                 password: connectPassword,
                 privateKeyPEM: deployPrivateKey,
                 publicKeyLine: publicLine,
-                installDir: installDir
+                installDir: installDir,
+                onLog: onLog
             )
         } catch {
             throw ServerDeployerError.sshFailed(error.localizedDescription)

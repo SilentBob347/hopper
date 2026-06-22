@@ -60,16 +60,63 @@ object HopSSH {
         throw lastError ?: HopSSHException("SSH connect failed")
     }
 
-    fun runCommand(sshClient: SSHClient, command: String): String {
+    fun runCommand(sshClient: SSHClient, command: String): String =
+        runCommand(sshClient, command, onLine = null)
+
+    fun runCommand(
+        sshClient: SSHClient,
+        command: String,
+        onLine: ((String) -> Unit)?,
+    ): String {
+        if (onLine == null) {
+            sshClient.startSession().use { session ->
+                session.exec(command).use { commandSession ->
+                    val output = commandSession.inputStream.bufferedReader().readText()
+                    val exitStatus = commandSession.exitStatus
+                    if (exitStatus != null && exitStatus != 0) {
+                        val stderr = commandSession.errorStream.bufferedReader().readText()
+                        TunnelLog.error("Command failed ($exitStatus): $stderr")
+                    }
+                    return output
+                }
+            }
+        }
+        return runCommandStreaming(sshClient, command, onLine)
+    }
+
+    private fun runCommandStreaming(
+        sshClient: SSHClient,
+        command: String,
+        onLine: (String) -> Unit,
+    ): String {
         sshClient.startSession().use { session ->
             session.exec(command).use { commandSession ->
-                val output = commandSession.inputStream.bufferedReader().readText()
+                val stdout = StringBuilder()
+                val stderr = StringBuilder()
+                val outThread = Thread {
+                    commandSession.inputStream.bufferedReader().forEachLine { line ->
+                        stdout.appendLine(line)
+                        onLine(line)
+                    }
+                }
+                val errThread = Thread {
+                    commandSession.errorStream.bufferedReader().forEachLine { line ->
+                        stderr.appendLine(line)
+                        onLine(line)
+                    }
+                }
+                outThread.start()
+                errThread.start()
+                outThread.join()
+                errThread.join()
                 val exitStatus = commandSession.exitStatus
                 if (exitStatus != null && exitStatus != 0) {
-                    val stderr = commandSession.errorStream.bufferedReader().readText()
-                    TunnelLog.error("Command failed ($exitStatus): $stderr")
+                    val detail = stderr.toString().trim()
+                    throw HopSSHException(
+                        if (detail.isEmpty()) "Command failed ($exitStatus)" else "Command failed ($exitStatus): $detail",
+                    )
                 }
-                return output
+                return stdout.toString()
             }
         }
     }

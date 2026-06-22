@@ -45,8 +45,54 @@ enum HopSSH {
     }
 
     static func runCommand(on client: SSHClient, _ command: String) async throws -> String {
+        try await runCommand(on: client, command, onLine: nil)
+    }
+
+    static func runCommand(
+        on client: SSHClient,
+        _ command: String,
+        onLine: (@Sendable (String) -> Void)?
+    ) async throws -> String {
+        if let onLine {
+            return try await runCommandStreaming(on: client, command, onLine: onLine)
+        }
         let buffer = try await client.executeCommand(command, mergeStreams: false)
         return String(buffer: buffer)
+    }
+
+    private static func runCommandStreaming(
+        on client: SSHClient,
+        _ command: String,
+        onLine: @escaping @Sendable (String) -> Void
+    ) async throws -> String {
+        var collected = ""
+        var pending = ""
+        let stream = try await client.executeCommandStream(command)
+
+        func flushPending(asFinal: Bool = false) {
+            while let newline = pending.firstIndex(of: "\n") {
+                let line = String(pending[..<newline])
+                pending = String(pending[pending.index(after: newline)...])
+                onLine(line)
+            }
+            if asFinal, !pending.isEmpty {
+                onLine(pending)
+                pending = ""
+            }
+        }
+
+        for try await output in stream {
+            let chunk: String
+            switch output {
+            case .stdout(let buffer), .stderr(let buffer):
+                chunk = String(buffer: buffer)
+            }
+            collected += chunk
+            pending += chunk
+            flushPending()
+        }
+        flushPending(asFinal: true)
+        return collected
     }
 
     static func withSession<T>(

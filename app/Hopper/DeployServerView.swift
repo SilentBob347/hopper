@@ -26,49 +26,80 @@ struct DeployServerView: View {
     @State private var selectedKeyID: UUID?
     @State private var isDeploying = false
     @State private var errorMessage: String?
+    @State private var deployLog = ""
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Server") {
-                    TextField("Host or IP", text: $host)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                    TextField("User", text: $user)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    TextField("SSH port", text: $portText)
-                        .keyboardType(.numberPad)
-                }
-
-                Section("Authentication") {
-                    Picker("Method", selection: $authMode) {
-                        ForEach(DeployAuthMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
+                if !isDeploying {
+                    Section("Server") {
+                        TextField("Host or IP", text: $host)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                        TextField("User", text: $user)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        TextField("SSH port", text: $portText)
+                            .keyboardType(.numberPad)
                     }
-                    .pickerStyle(.segmented)
 
-                    switch authMode {
-                    case .password:
-                        SecureField("Password", text: $password)
-                        Text("A new deploy key is generated, saved in the key library, and installed on the server.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    case .savedKey:
-                        if vpn.state.deployKeys.isEmpty {
-                            Text("No saved deploy keys yet. Use password once to create one.")
+                    Section("Authentication") {
+                        Picker("Method", selection: $authMode) {
+                            ForEach(DeployAuthMode.allCases) { mode in
+                                Text(mode.label).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        switch authMode {
+                        case .password:
+                            SecureField("Password", text: $password)
+                            Text("A new deploy key is generated, saved in the key library, and installed on the server.")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
-                        } else {
-                            Picker("Deploy key", selection: Binding(
-                                get: { selectedKeyID ?? vpn.state.deployKeys.first?.id },
-                                set: { selectedKeyID = $0 }
-                            )) {
-                                ForEach(vpn.state.deployKeys) { key in
-                                    Text(key.name).tag(Optional(key.id))
+                        case .savedKey:
+                            if vpn.state.deployKeys.isEmpty {
+                                Text("No saved deploy keys yet. Use password once to create one.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Picker("Deploy key", selection: Binding(
+                                    get: { selectedKeyID ?? vpn.state.deployKeys.first?.id },
+                                    set: { selectedKeyID = $0 }
+                                )) {
+                                    ForEach(vpn.state.deployKeys) { key in
+                                        Text(key.name).tag(Optional(key.id))
+                                    }
                                 }
+                            }
+                        }
+                    }
+                }
+
+                if isDeploying || !deployLog.isEmpty {
+                    Section("Deploy log") {
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                Text(deployLog.isEmpty ? "Starting…" : deployLog)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                                    .id("deployLogEnd")
+                            }
+                            .frame(minHeight: 180, maxHeight: 320)
+                            .onChange(of: deployLog) { _, _ in
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    proxy.scrollTo("deployLogEnd", anchor: .bottom)
+                                }
+                            }
+                        }
+                        if isDeploying {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("Deploying…")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -95,16 +126,6 @@ struct DeployServerView: View {
                 }
             }
             .interactiveDismissDisabled(isDeploying)
-            .overlay {
-                if isDeploying {
-                    ZStack {
-                        Color.black.opacity(0.2).ignoresSafeArea()
-                        ProgressView("Deploying…")
-                            .padding()
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                    }
-                }
-            }
         }
         .onAppear {
             if selectedKeyID == nil {
@@ -123,8 +144,17 @@ struct DeployServerView: View {
         }
     }
 
+    private func appendLog(_ line: String) {
+        if deployLog.isEmpty {
+            deployLog = line
+        } else {
+            deployLog += "\n" + line
+        }
+    }
+
     private func deploy() {
         errorMessage = nil
+        deployLog = ""
         isDeploying = true
         let port = Int(portText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? HopConstants.defaultSSHPort
         let auth: ServerDeployAuth
@@ -147,7 +177,12 @@ struct DeployServerView: View {
                     host: host,
                     port: port,
                     user: user,
-                    auth: auth
+                    auth: auth,
+                    onLog: { line in
+                        Task { @MainActor in
+                            appendLog(line)
+                        }
+                    }
                 )
                 dismiss()
             } catch {

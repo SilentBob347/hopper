@@ -33,6 +33,7 @@ object ServerDeployer {
         user: String = "root",
         installDir: String = HopConstants.DEFAULT_INSTALL_DIR,
         auth: ServerDeployAuth,
+        onLog: ((String) -> Unit)? = null,
     ): Result {
         val trimmedHost = host.trim()
         if (trimmedHost.isEmpty()) throw ServerDeployerException.MissingHost
@@ -77,6 +78,7 @@ object ServerDeployer {
                 privateKeyPem = deployPrivateKey,
                 publicKeyLine = publicLine,
                 installDir = installDir,
+                onLog = onLog,
             )
         }.getOrElse { error ->
             throw ServerDeployerException.SshFailed(error.message ?: error.toString())

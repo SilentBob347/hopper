@@ -1,27 +1,43 @@
 package com.aengix.hopper.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.aengix.hopper.model.AppState
 import com.aengix.hopper.model.HopChain
 import com.aengix.hopper.vpn.VpnController
 
@@ -34,6 +50,7 @@ fun ChainConfiguratorScreen(
     onOpenServers: () -> Unit,
 ) {
     val state by vpn.state.collectAsState()
+    var chainToDelete by remember { mutableStateOf<HopChain?>(null) }
 
     Scaffold(
         topBar = {
@@ -47,59 +64,151 @@ fun ChainConfiguratorScreen(
             )
         },
     ) { padding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Button(onClick = onOpenServers, modifier = Modifier.padding(bottom = 8.dp)) {
-                Text("Server library")
-            }
-            Text(
-                "Scan QR codes or import JSON here to add servers. Then build chains from those servers below.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp),
-            )
-
-            Text("Chains", style = MaterialTheme.typography.titleMedium)
-            if (state.chains.isEmpty()) {
-                Text(
-                    "Create a chain and add servers in entry → exit order.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                state.chains.forEach { chain ->
-                    ListItem(
-                        headlineContent = { Text(chain.displayName) },
-                        supportingContent = { Text(chainSummary(state, chain)) },
-                        trailingContent = {
-                            if (state.selectedChainID == chain.id) Text("✓")
-                        },
-                        modifier = Modifier.clickable { onChainDetail(chain.id) },
-                    )
-                    Button(onClick = { vpn.selectChain(chain.id) }) {
-                        Text("Use")
-                    }
+            item {
+                Button(onClick = onOpenServers, modifier = Modifier.fillMaxWidth()) {
+                    Text("Server library")
                 }
             }
-
-            Button(
-                onClick = {
-                    val id = vpn.addChain()
-                    vpn.selectChain(id)
-                },
-                modifier = Modifier.padding(top = 8.dp),
-            ) {
-                Text("New chain")
+            item {
+                Text(
+                    "Scan QR codes or import JSON in the server library, then build chains from those servers below.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            item {
+                Text("Chains", style = MaterialTheme.typography.titleMedium)
+            }
+            if (state.chains.isEmpty()) {
+                item {
+                    Text(
+                        "Create a chain and add servers in entry → exit order.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                items(state.chains, key = { it.id }) { chain ->
+                    ChainLibraryRow(
+                        chain = chain,
+                        summary = chainSummary(state, chain),
+                        selected = state.selectedChainID == chain.id,
+                        onClick = { onChainDetail(chain.id) },
+                        onUse = { vpn.selectChain(chain.id) },
+                        onDelete = { chainToDelete = chain },
+                    )
+                }
+            }
+            item {
+                Button(
+                    onClick = {
+                        val id = vpn.addChain()
+                        vpn.selectChain(id)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("New chain")
+                }
             }
         }
     }
+
+    chainToDelete?.let { chain ->
+        AlertDialog(
+            onDismissRequest = { chainToDelete = null },
+            title = { Text("Delete chain?") },
+            text = {
+                Text("Remove ${chain.displayName} from the library. Servers in your library are kept.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vpn.deleteChains(setOf(chain.id))
+                    chainToDelete = null
+                }) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { chainToDelete = null }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
 }
 
-private fun chainSummary(state: com.aengix.hopper.model.AppState, chain: HopChain): String {
+@Composable
+private fun ChainLibraryRow(
+    chain: HopChain,
+    summary: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onUse: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    OutlinedCard(
+        modifier = Modifier.fillMaxWidth(),
+        border = if (selected) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        } else {
+            CardDefaults.outlinedCardBorder()
+        },
+        colors = if (selected) {
+            CardDefaults.outlinedCardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+            )
+        } else {
+            CardDefaults.outlinedCardColors()
+        },
+    ) {
+        ListItem(
+            headlineContent = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (selected) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Active chain",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .padding(end = 8.dp),
+                        )
+                    }
+                    Text(chain.displayName)
+                }
+            },
+            supportingContent = { Text(summary) },
+            modifier = Modifier.clickable(onClick = onClick),
+            trailingContent = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (!selected) {
+                        TextButton(onClick = onUse) {
+                            Text("Use")
+                        }
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete chain",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            },
+        )
+    }
+}
+
+private fun chainSummary(state: AppState, chain: HopChain): String {
     val hops = state.resolveHops(chain)
     return when {
         hops.isEmpty() -> "No servers"

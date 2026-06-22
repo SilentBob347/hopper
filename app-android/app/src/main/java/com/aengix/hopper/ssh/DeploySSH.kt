@@ -15,7 +15,11 @@ object DeploySSH {
         privateKeyPem: String,
         publicKeyLine: String,
         installDir: String,
+        onLog: ((String) -> Unit)? = null,
     ): String {
+        val log = onLog ?: {}
+        log("Connecting to $user@$host:$port…")
+
         HopSecurityProviders.ensureRegistered()
         val resolvedHost = IPv4Only.resolveHost(host)
         val sshClient = SSHClient()
@@ -30,8 +34,12 @@ object DeploySSH {
                 sshClient.authPublickey(user, keyProvider)
             }
 
+            log("Ensuring deploy key is in authorized_keys…")
             HopSSH.runCommand(sshClient, authorizedKeysCommand(publicKeyLine, host))
-            return HopSSH.runCommand(sshClient, installCommand(host, port, installDir))
+            log("Deploy key authorized.")
+
+            log("Running remote install…")
+            return HopSSH.runCommand(sshClient, installCommand(host, port, installDir), onLine = log)
         } finally {
             runCatching { sshClient.disconnect() }
         }

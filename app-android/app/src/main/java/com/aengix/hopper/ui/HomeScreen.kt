@@ -12,6 +12,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -198,16 +199,18 @@ private fun ChainPicker(
     onSelect: (String?) -> Unit,
 ) {
     chains.forEach { chain ->
+        val isSelected = chain.id == selectedId
         ListItem(
             headlineContent = { Text(chain.displayName) },
+            leadingContent = {
+                RadioButton(
+                    selected = isSelected,
+                    onClick = { onSelect(chain.id) },
+                )
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onSelect(chain.id) },
-            trailingContent = {
-                if (chain.id == selectedId) {
-                    Text("✓")
-                }
-            },
         )
     }
 }

@@ -28,10 +28,13 @@ Options:
   -P, --path PATH         Remote install directory (default: ~/hopper)
   -y, --yes               Skip deploy confirmation prompt
   --ref TAG               Git ref for install.sh (default: ${HOPPER_REF})
-  --local                 Pipe install.sh from this repo instead of GitHub
+  --local                 Upload server tree from this repo instead of GitHub curl
+  --binaries [DIR]        Rsync local hopperd-linux-* binary (default: server/dist)
+  --no-binaries           With --local, do not upload dist/ even if present
   --no-qr                 Do not open QR import page
 
-Environment: DEPLOY_HOST, DEPLOY_USER, DEPLOY_PORT, DEPLOY_KEY, DEPLOY_PATH, HOPPER_REF, HOPPER_INSTALL_URL
+Environment: DEPLOY_HOST, DEPLOY_USER, DEPLOY_PORT, DEPLOY_KEY, DEPLOY_PATH,
+             HOPPER_REF, HOPPER_INSTALL_URL, DEPLOY_BINARIES
 EOF
 }
 
@@ -43,6 +46,9 @@ SSH_HOST="${DEPLOY_HOST:-}"
 SKIP_CONFIRM=0
 NO_QR=0
 USE_LOCAL=0
+BINARIES_DIR=""
+BINARIES_EXPLICIT=0
+NO_BINARIES=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -54,6 +60,17 @@ while [[ $# -gt 0 ]]; do
     -y | --yes) SKIP_CONFIRM=1; shift ;;
     --ref) HOPPER_REF="$2"; INSTALL_URL="https://raw.githubusercontent.com/${HOPPER_REPO}/${HOPPER_REF}/server/install.sh"; shift 2 ;;
     --local) USE_LOCAL=1; shift ;;
+    --binaries)
+      BINARIES_EXPLICIT=1
+      if [[ $# -ge 2 && "$2" != -* ]]; then
+        BINARIES_DIR="$2"
+        shift 2
+      else
+        BINARIES_DIR="${DEPLOY_BINARIES:-${SCRIPT_DIR}/dist}"
+        shift
+      fi
+      ;;
+    --no-binaries) NO_BINARIES=1; shift ;;
     --no-qr) NO_QR=1; shift ;;
     -*) die "Unknown option: $1 (try --help)" ;;
     *)
@@ -73,7 +90,50 @@ fi
 [[ -f "$SSH_KEY" ]] || die "SSH key not found: $SSH_KEY"
 
 SSH_BASE=(ssh -i "$SSH_KEY" -p "$SSH_PORT" -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new)
+RSYNC_SSH=(ssh -i "$SSH_KEY" -p "$SSH_PORT" -o StrictHostKeyChecking=accept-new)
 ssh_cmd() { "${SSH_BASE[@]}" "${SSH_USER}@${SSH_HOST}" "$@"; }
+rsync_to_remote() {
+  rsync -az -e "$(printf '%q ' "${RSYNC_SSH[@]}")" "$@"
+}
+
+remote_linux_arch() {
+  ssh_cmd 'case "$(uname -m)" in x86_64|amd64) echo amd64;; aarch64|arm64) echo arm64;; *) echo unknown;; esac'
+}
+
+resolve_binaries_dir() {
+  if [[ "$NO_BINARIES" -eq 1 ]]; then
+    return 1
+  fi
+  if [[ -n "$BINARIES_DIR" ]]; then
+    [[ -d "$BINARIES_DIR" ]] || die "Binaries directory not found: $BINARIES_DIR"
+    return 0
+  fi
+  if [[ "$USE_LOCAL" -eq 1 ]]; then
+    BINARIES_DIR="${SCRIPT_DIR}/dist"
+    [[ -d "$BINARIES_DIR" ]] || return 1
+    local f
+    for f in "${BINARIES_DIR}"/hopperd-linux-*; do
+      [[ -f "$f" ]] && return 0
+    done
+    return 1
+  fi
+  return 1
+}
+
+sync_local_binaries() {
+  local src_dir="$1"
+  local arch name src remote_dist
+  arch="$(remote_linux_arch)"
+  [[ "$arch" != unknown ]] || die "Unsupported remote CPU architecture"
+  name="hopperd-linux-${arch}"
+  src="${src_dir}/${name}"
+  [[ -f "$src" ]] || die "Missing local binary: ${src} (run ./build_dist.sh or pass --binaries DIR)"
+  remote_dist="${REMOTE_PATH_EXPANDED}/dist"
+  log "Uploading ${name} → ${remote_dist}/"
+  ssh_cmd "mkdir -p $(printf %q "$remote_dist")"
+  rsync_to_remote "$src" "${SSH_USER}@${SSH_HOST}:${remote_dist}/"
+  ssh_cmd "chmod +x $(printf %q "${remote_dist}/${name}")"
+}
 
 log "Remote ${SSH_USER}@${SSH_HOST}:${SSH_PORT} → ${REMOTE_PATH} (ref=${HOPPER_REF})"
 
@@ -115,6 +175,13 @@ ensure_identity_in_authorized_keys
 
 REMOTE_PATH_EXPANDED="$(ssh_cmd "eval echo $(printf %q "$REMOTE_PATH")")"
 
+USE_LOCAL_BINARIES=0
+if resolve_binaries_dir; then
+  USE_LOCAL_BINARIES=1
+elif [[ "$BINARIES_EXPLICIT" -eq 1 ]]; then
+  die "No hopperd binary found under ${BINARIES_DIR}"
+fi
+
 extract_json_line() {
   python3 -c '
 import sys
@@ -130,18 +197,27 @@ log "Running remote install..."
 install_out="$(mktemp)"
 install_err="$(mktemp)"
 trap 'rm -f "$install_out" "$install_err"' EXIT
-remote_install_cmd="curl -fsSL $(printf %q "$INSTALL_URL") | HOPPER_REF=$(printf %q "$HOPPER_REF") HOPPER_INSTALL_DIR=$(printf %q "$REMOTE_PATH_EXPANDED") bash -s -- --configure --host $(printf %q "$SSH_HOST") --port $(printf %q "$SSH_PORT")"
+install_args=(--configure --host "$SSH_HOST" --port "$SSH_PORT")
+[[ "$USE_LOCAL_BINARIES" -eq 1 ]] && install_args=(--skip-binary "${install_args[@]}")
+install_args_quoted="$(printf '%q ' "${install_args[@]}")"
 install_failed=0
 if [[ "$USE_LOCAL" -eq 1 ]]; then
   log "Uploading local server tree to ${REMOTE_PATH_EXPANDED}..."
   ssh_cmd "mkdir -p $(printf %q "$REMOTE_PATH_EXPANDED")"
-  rsync -az -e "ssh -i $(printf %q "$SSH_KEY") -p $(printf %q "$SSH_PORT") -o StrictHostKeyChecking=accept-new" \
+  rsync_to_remote \
     --exclude '.venv/' --exclude 'dist/' --exclude '.repo/' \
     "${SCRIPT_DIR}/" "${SSH_USER}@${SSH_HOST}:${REMOTE_PATH_EXPANDED}/"
-  remote_install_cmd="cd $(printf %q "$REMOTE_PATH_EXPANDED") && ./install.sh --skip-sync --configure --host $(printf %q "$SSH_HOST") --port $(printf %q "$SSH_PORT")"
+  if [[ "$USE_LOCAL_BINARIES" -eq 1 ]]; then
+    sync_local_binaries "$BINARIES_DIR"
+  fi
+  remote_install_cmd="cd $(printf %q "$REMOTE_PATH_EXPANDED") && ./install.sh --skip-sync ${install_args_quoted}"
   ssh_cmd "$remote_install_cmd" >"$install_out" 2>"$install_err" || install_failed=1
 else
+  if [[ "$USE_LOCAL_BINARIES" -eq 1 ]]; then
+    sync_local_binaries "$BINARIES_DIR"
+  fi
   log "Remote install URL: ${INSTALL_URL}"
+  remote_install_cmd="curl -fsSL $(printf %q "$INSTALL_URL") | HOPPER_REF=$(printf %q "$HOPPER_REF") HOPPER_INSTALL_DIR=$(printf %q "$REMOTE_PATH_EXPANDED") bash -s -- ${install_args_quoted}"
   ssh_cmd "$remote_install_cmd" >"$install_out" 2>"$install_err" || install_failed=1
 fi
 if [[ "$install_failed" -eq 1 ]]; then
