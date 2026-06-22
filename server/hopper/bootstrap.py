@@ -42,11 +42,62 @@ def _install_packages(packages: list[str]) -> None:
         die(f"Cannot install packages automatically. Install: {' '.join(packages)}")
 
 
+def _venv_works(python: str) -> bool:
+    import tempfile
+
+    td = Path(tempfile.mkdtemp())
+    try:
+        venv.create(td, with_pip=True)
+        return True
+    except Exception:
+        return False
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
+
+
+def _python_minor_version() -> str:
+    python = shutil.which("python3")
+    if not python:
+        return ""
+    r = subprocess.run(
+        [python, "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"],
+        capture_output=True,
+        text=True,
+    )
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
 def ensure_python() -> None:
-    if shutil.which("python3"):
+    python = shutil.which("python3")
+    if python and _venv_works(python):
         return
-    log("python3 not found — installing...")
-    _install_packages(["python3", "python3-venv", "python3-pip"])
+    if python:
+        log("python3-venv missing — installing...")
+    else:
+        log("python3 not found — installing...")
+    pkgs = ["python3", "python3-venv", "python3-pip"]
+    ver = _python_minor_version()
+    if ver:
+        pkgs.append(f"python{ver}-venv")
+    _install_packages(pkgs)
+    python = shutil.which("python3")
+    if not python or not _venv_works(python):
+        die("python3 venv still unavailable after package install")
+
+
+def _venv_python_ready(vdir: Path) -> bool:
+    vpy = vdir / "bin" / "python"
+    if not vpy.is_file():
+        return False
+    pip_ok = subprocess.run([str(vpy), "-m", "pip", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if pip_ok.returncode != 0:
+        return False
+    hopper_ok = subprocess.run(
+        [str(vpy), "-c", "import hopper.cli"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return hopper_ok.returncode == 0
 
 
 def ensure_venv_packages() -> Path:
@@ -56,15 +107,18 @@ def ensure_venv_packages() -> Path:
     if not python:
         die("python3 required")
     vdir = venv_dir()
-    if not vdir.is_dir() or not (vdir / "bin" / "python").is_file():
+    if not _venv_python_ready(vdir):
+        if vdir.is_dir():
+            log(f"Removing incomplete venv at {vdir}")
+            shutil.rmtree(vdir)
         log(f"Creating venv at {vdir}")
         venv.create(vdir, with_pip=True)
     vpy = vdir / "bin" / "python"
     req = hopper_dir() / "requirements.txt"
-    subprocess.run([str(vpy), "-m", "pip", "install", "--upgrade", "pip"], check=True)
-    subprocess.run([str(vpy), "-m", "pip", "install", "-e", str(hopper_dir())], check=True)
+    subprocess.run([str(vpy), "-m", "pip", "install", "--upgrade", "pip", "-q"], check=True)
+    subprocess.run([str(vpy), "-m", "pip", "install", "-e", str(hopper_dir()), "-q"], check=True)
     if req.is_file():
-        subprocess.run([str(vpy), "-m", "pip", "install", "-r", str(req)], check=True)
+        subprocess.run([str(vpy), "-m", "pip", "install", "-r", str(req), "-q"], check=True)
     return vpy
 
 

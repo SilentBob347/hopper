@@ -65,11 +65,15 @@ def refresh_binary_from_release() -> bool:
     dest = hopper_binary_path()
     url = f"{base}/hopperd-linux-{detect_arch()}"
     log(f"Downloading {url}...")
-    if shutil.which("curl"):
-        subprocess.run(["curl", "-fsSL", "-o", str(dest), url], check=True)
-    elif shutil.which("wget"):
-        subprocess.run(["wget", "-q", "-O", str(dest), url], check=True)
-    else:
+    try:
+        if shutil.which("curl"):
+            subprocess.run(["curl", "-fsSL", "-o", str(dest), url], check=True)
+        elif shutil.which("wget"):
+            subprocess.run(["wget", "-q", "-O", str(dest), url], check=True)
+        else:
+            return False
+    except subprocess.CalledProcessError:
+        dest.unlink(missing_ok=True)
         return False
     dest.chmod(0o755)
     return dest.is_file() and dest.stat().st_size > 0

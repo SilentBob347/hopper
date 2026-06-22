@@ -28,6 +28,7 @@ Options:
   -P, --path PATH         Remote install directory (default: ~/hopper)
   -y, --yes               Skip deploy confirmation prompt
   --ref TAG               Git ref for install.sh (default: ${HOPPER_REF})
+  --local                 Pipe install.sh from this repo instead of GitHub
   --no-qr                 Do not open QR import page
 
 Environment: DEPLOY_HOST, DEPLOY_USER, DEPLOY_PORT, DEPLOY_KEY, DEPLOY_PATH, HOPPER_REF, HOPPER_INSTALL_URL
@@ -41,6 +42,7 @@ REMOTE_PATH="${DEPLOY_PATH:-~/hopper}"
 SSH_HOST="${DEPLOY_HOST:-}"
 SKIP_CONFIRM=0
 NO_QR=0
+USE_LOCAL=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     -P | --path) REMOTE_PATH="$2"; shift 2 ;;
     -y | --yes) SKIP_CONFIRM=1; shift ;;
     --ref) HOPPER_REF="$2"; INSTALL_URL="https://raw.githubusercontent.com/${HOPPER_REPO}/${HOPPER_REF}/server/install.sh"; shift 2 ;;
+    --local) USE_LOCAL=1; shift ;;
     --no-qr) NO_QR=1; shift ;;
     -*) die "Unknown option: $1 (try --help)" ;;
     *)
@@ -112,9 +115,46 @@ ensure_identity_in_authorized_keys
 
 REMOTE_PATH_EXPANDED="$(ssh_cmd "eval echo $(printf %q "$REMOTE_PATH")")"
 
-log "Running remote install from ${INSTALL_URL}..."
-payload="$(ssh_cmd "curl -fsSL $(printf %q "$INSTALL_URL") | HOPPER_REF=$(printf %q "$HOPPER_REF") HOPPER_INSTALL_DIR=$(printf %q "$REMOTE_PATH_EXPANDED") bash -s -- --configure --host $(printf %q "$SSH_HOST") --port $(printf %q "$SSH_PORT")" 2>/dev/null | tail -1)"
-[[ -n "$payload" && "$payload" == \{* ]] || die "Remote install did not return JSON profile"
+extract_json_line() {
+  python3 -c '
+import sys
+for line in reversed(sys.stdin.read().splitlines()):
+    s = line.strip()
+    if s.startswith("{"):
+        print(s)
+        break
+'
+}
+
+log "Running remote install..."
+install_out="$(mktemp)"
+install_err="$(mktemp)"
+trap 'rm -f "$install_out" "$install_err"' EXIT
+remote_install_cmd="curl -fsSL $(printf %q "$INSTALL_URL") | HOPPER_REF=$(printf %q "$HOPPER_REF") HOPPER_INSTALL_DIR=$(printf %q "$REMOTE_PATH_EXPANDED") bash -s -- --configure --host $(printf %q "$SSH_HOST") --port $(printf %q "$SSH_PORT")"
+install_failed=0
+if [[ "$USE_LOCAL" -eq 1 ]]; then
+  log "Uploading local server tree to ${REMOTE_PATH_EXPANDED}..."
+  ssh_cmd "mkdir -p $(printf %q "$REMOTE_PATH_EXPANDED")"
+  rsync -az -e "ssh -i $(printf %q "$SSH_KEY") -p $(printf %q "$SSH_PORT") -o StrictHostKeyChecking=accept-new" \
+    --exclude '.venv/' --exclude 'dist/' --exclude '.repo/' \
+    "${SCRIPT_DIR}/" "${SSH_USER}@${SSH_HOST}:${REMOTE_PATH_EXPANDED}/"
+  remote_install_cmd="cd $(printf %q "$REMOTE_PATH_EXPANDED") && ./install.sh --skip-sync --configure --host $(printf %q "$SSH_HOST") --port $(printf %q "$SSH_PORT")"
+  ssh_cmd "$remote_install_cmd" >"$install_out" 2>"$install_err" || install_failed=1
+else
+  log "Remote install URL: ${INSTALL_URL}"
+  ssh_cmd "$remote_install_cmd" >"$install_out" 2>"$install_err" || install_failed=1
+fi
+if [[ "$install_failed" -eq 1 ]]; then
+  [[ -s "$install_err" ]] && cat "$install_err" >&2
+  [[ -s "$install_out" ]] && cat "$install_out" >&2
+  die "Remote install command failed (see output above)"
+fi
+[[ -s "$install_err" ]] && cat "$install_err" >&2
+payload="$(extract_json_line <"$install_out")"
+[[ -n "$payload" ]] || {
+  [[ -s "$install_out" ]] && cat "$install_out" >&2
+  die "Remote install did not return JSON profile"
+}
 
 log "Deployed to ${SSH_USER}@${SSH_HOST}:${REMOTE_PATH_EXPANDED}"
 

@@ -24,6 +24,7 @@ Options:
   --host HOST         SSH host for profile (with --configure)
   --port PORT         SSH port for profile (default: 22)
   --remove            Remove hopper from this host
+  --skip-sync         Do not pull server tree from git (use files already on disk)
   -y, --yes           Skip confirmation for --remove
   -h, --help          Show help
 
@@ -35,6 +36,7 @@ EOF
 CONFIGURE=0
 REMOVE=0
 YES=0
+SKIP_SYNC=0
 HOST=""
 PORT="22"
 REF="${HOPPER_REF}"
@@ -47,6 +49,7 @@ while [[ $# -gt 0 ]]; do
     --host) HOST="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
     --remove) REMOVE=1; shift ;;
+    --skip-sync) SKIP_SYNC=1; shift ;;
     -y | --yes) YES=1; shift ;;
     -h | --help) usage; exit 0 ;;
     *) die "Unknown option: $1" ;;
@@ -76,15 +79,35 @@ if [[ "$REMOVE" -eq 1 ]]; then
   die "Nothing to remove at ${HOPPER_DIR}"
 fi
 
-ensure_python() {
-  command -v python3 >/dev/null 2>&1 && return 0
-  log "Installing python3..."
-  if [[ "$(id -u)" -ne 0 ]]; then
-    die "python3 required. Run as root or install python3-venv manually."
+python3_venv_works() {
+  local testdir
+  testdir="$(mktemp -d)"
+  if python3 -m venv "$testdir" >/dev/null 2>&1; then
+    rm -rf "$testdir"
+    return 0
   fi
+  rm -rf "$testdir"
+  return 1
+}
+
+ensure_python() {
+  if command -v python3 >/dev/null 2>&1 && python3_venv_works; then
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    log "python3-venv missing — installing..."
+  else
+    log "Installing python3..."
+  fi
+  if [[ "$(id -u)" -ne 0 ]]; then
+    die "python3 with venv support required. Run as root or install python3-venv manually."
+  fi
+  local py_ver=""
+  py_ver="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update -qq
     DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-venv python3-pip git curl
+    [[ -n "$py_ver" ]] && DEBIAN_FRONTEND=noninteractive apt-get install -y "python${py_ver}-venv" 2>/dev/null || true
   elif command -v dnf >/dev/null 2>&1; then
     dnf install -y python3 python3-pip git curl
   elif command -v yum >/dev/null 2>&1; then
@@ -94,6 +117,7 @@ ensure_python() {
   else
     die "Cannot install python3 automatically"
   fi
+  python3_venv_works || die "python3 venv still unavailable after package install"
 }
 
 ensure_python
@@ -122,21 +146,35 @@ if [[ ! -f "${HOPPER_DIR}/pyproject.toml" ]]; then
 fi
 
 export HOPPER_DIR
-if [[ -x "${HOPPER_DIR}/hopperctl" ]]; then
-  args=(install --ref "${REF}")
-  [[ "$CONFIGURE" -eq 1 ]] && args+=(--configure)
-  [[ -n "$HOST" ]] && args+=(--host "$HOST")
-  [[ -n "$PORT" ]] && args+=(--port "$PORT")
-  exec "${HOPPER_DIR}/hopperctl" "${args[@]}"
-fi
 
-# First run before hopperctl exists: create venv and install package
-python3 -m venv "${HOPPER_DIR}/.venv"
-"${HOPPER_DIR}/.venv/bin/pip" install --upgrade pip
-"${HOPPER_DIR}/.venv/bin/pip" install -e "${HOPPER_DIR}"
-chmod +x "${HOPPER_DIR}/hopperctl" 2>/dev/null || true
-args=(install --ref "${REF}")
+hopper_cli_ready() {
+  [[ -x "${HOPPER_DIR}/.venv/bin/python" ]] \
+    && "${HOPPER_DIR}/.venv/bin/python" -m pip --version >/dev/null 2>&1 \
+    && "${HOPPER_DIR}/.venv/bin/python" -c "import hopper.cli" 2>/dev/null
+}
+
+ensure_hopper_cli() {
+  ensure_python
+  if hopper_cli_ready; then
+    return 0
+  fi
+  if [[ -d "${HOPPER_DIR}/.venv" ]]; then
+    log "Removing incomplete venv..."
+    rm -rf "${HOPPER_DIR}/.venv"
+  fi
+  log "Creating Python venv and installing hopper package..."
+  python3 -m venv "${HOPPER_DIR}/.venv"
+  "${HOPPER_DIR}/.venv/bin/pip" install --upgrade pip -q
+  "${HOPPER_DIR}/.venv/bin/pip" install -e "${HOPPER_DIR}" -q
+  chmod +x "${HOPPER_DIR}/hopperctl" 2>/dev/null || true
+  hopper_cli_ready || die "hopper CLI bootstrap failed"
+}
+
+ensure_hopper_cli
+
+args=(install)
+[[ "$SKIP_SYNC" -eq 0 ]] && args+=(--ref "${REF}")
 [[ "$CONFIGURE" -eq 1 ]] && args+=(--configure)
 [[ -n "$HOST" ]] && args+=(--host "$HOST")
 [[ -n "$PORT" ]] && args+=(--port "$PORT")
-exec "${HOPPER_DIR}/.venv/bin/python" -m hopper.cli "${args[@]}"
+exec "${HOPPER_DIR}/hopperctl" "${args[@]}"
