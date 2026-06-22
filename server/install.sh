@@ -182,7 +182,18 @@ sync_server_tree() {
   done
   chmod +x "${HOPPER_DIR}"/*.sh 2>/dev/null || true
   chmod +x "${HOPPER_DIR}/hopperctl" 2>/dev/null || true
+  fix_dist_permissions
   log "git sync: server tree updated"
+}
+
+fix_dist_permissions() {
+  local dist="${HOPPER_DIR}/dist"
+  mkdir -p "$dist"
+  chmod 755 "$dist" 2>/dev/null || true
+  if [[ "$(id -u)" -eq 0 ]]; then
+    chown root:root "$dist" 2>/dev/null || true
+  fi
+  chmod +x "${dist}"/hopperd-linux-* 2>/dev/null || true
 }
 
 ensure_python
@@ -220,6 +231,8 @@ ensure_venv() {
 }
 
 ensure_venv
+
+fix_dist_permissions
 
 args=(install --skip-sync)
 [[ "$SKIP_BINARY" -eq 1 ]] && args+=(--skip-binary)

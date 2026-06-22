@@ -58,5 +58,14 @@ class ChainContext:
 
 
 def ensure_dirs() -> None:
-    bin_dir().mkdir(parents=True, exist_ok=True)
+    d = bin_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    if os.geteuid() == 0:
+        try:
+            os.chmod(d, 0o755)
+            st = d.stat()
+            if st.st_uid != 0:
+                os.chown(d, 0, st.st_gid)
+        except OSError:
+            pass
     KEY_DIR.mkdir(parents=True, exist_ok=True)

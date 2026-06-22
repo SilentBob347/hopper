@@ -27,11 +27,21 @@ def hopper_binary_path() -> Path:
     return bin_dir() / f"{DAEMON_NAME}-linux-{detect_arch()}"
 
 
+def _ensure_executable(path: Path) -> None:
+    if path.is_file():
+        path.chmod(0o755)
+
+
 def _binary_passes_check(path: Path) -> bool:
     if not path.is_file():
         return False
-    check = subprocess.run([str(path), "-check"], capture_output=True)
-    return check.returncode == 0
+    try:
+        _ensure_executable(path)
+        check = subprocess.run([str(path), "-check"], capture_output=True)
+        return check.returncode == 0
+    except (PermissionError, OSError) as exc:
+        log(f"WARN: cannot run {path.name} -check: {exc}")
+        return False
 
 
 def purge_stale_binaries() -> None:
@@ -56,12 +66,10 @@ def resolve_binary() -> Path:
     dest = hopper_binary_path()
     if dest.is_file() and _binary_passes_check(dest):
         log(f"Using bundled {DAEMON_NAME} at {dest} ({dest.stat().st_size} bytes)")
-    elif dest.is_file():
+        return dest
+    if dest.is_file():
         log(f"Existing {dest.name} failed hopperd -check — removing")
         dest.unlink(missing_ok=True)
-    if dest.is_file():
-        dest.chmod(0o755)
-        return dest
     if shutil.which("go") and (Path(__file__).resolve().parent.parent / "cmd" / "hopperd" / "main.go").is_file():
         log(f"Building {DAEMON_NAME} into {dest}...")
         ver = version_field("version", "dev")
@@ -77,6 +85,7 @@ def resolve_binary() -> Path:
             env={**os.environ, "GOOS": "linux", "GOARCH": detect_arch(), "CGO_ENABLED": "0"},
             check=True,
         )
+        _ensure_executable(dest)
     else:
         die(f"Missing {dest}. Run hopper update or install from deploy.")
     if not _binary_passes_check(dest):
@@ -159,14 +168,24 @@ def _download_release_asset(url: str, dest: Path) -> str | None:
         tmp.unlink(missing_ok=True)
         return "response is not a Linux binary (404 HTML or wrong asset name?)"
 
-    check = subprocess.run([str(tmp), "-check"], capture_output=True, text=True)
+    tmp.chmod(0o755)
+    try:
+        check = subprocess.run([str(tmp), "-check"], capture_output=True, text=True)
+    except (PermissionError, OSError) as exc:
+        tmp.unlink(missing_ok=True)
+        return f"cannot execute {tmp.name}: {exc}"
+
     if check.returncode != 0:
         detail = (check.stderr or check.stdout or "").strip()
         tmp.unlink(missing_ok=True)
         return detail or "hopperd -check failed"
 
-    tmp.replace(dest)
-    dest.chmod(0o755)
+    try:
+        tmp.replace(dest)
+    except OSError as exc:
+        tmp.unlink(missing_ok=True)
+        return f"cannot install {dest.name}: {exc}"
+    _ensure_executable(dest)
     return None
 
 

@@ -130,9 +130,9 @@ sync_local_binaries() {
   [[ -f "$src" ]] || die "Missing local binary: ${src} (run ./build_dist.sh or pass --binaries DIR)"
   remote_dist="${REMOTE_PATH_EXPANDED}/dist"
   log "Uploading ${name} → ${remote_dist}/"
-  ssh_cmd "mkdir -p $(printf %q "$remote_dist")"
+  ssh_cmd "mkdir -p $(printf %q "$remote_dist") && chmod 755 $(printf %q "$remote_dist")"
   rsync_to_remote "$src" "${SSH_USER}@${SSH_HOST}:${remote_dist}/"
-  ssh_cmd "chmod +x $(printf %q "${remote_dist}/${name}")"
+  ssh_cmd "chmod +x $(printf %q "${remote_dist}/${name}") && chown -R root:root $(printf %q "$remote_dist")"
 }
 
 log "Remote ${SSH_USER}@${SSH_HOST}:${SSH_PORT} → ${REMOTE_PATH} (ref=${HOPPER_REF})"
