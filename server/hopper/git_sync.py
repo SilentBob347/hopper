@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -9,9 +10,49 @@ from .logutil import die, log
 from .paths import hopper_dir
 from .version import load_version, version_field
 
+_VERSION_LIKE_REF = re.compile(r"^(v)?\d+\.\d+")
+
 
 def repo_root() -> Path:
     return hopper_dir() / ".repo"
+
+
+def _is_version_like_ref(ref: str) -> bool:
+    return ref.startswith("v") or bool(_VERSION_LIKE_REF.match(ref))
+
+
+def checkout_git_ref(root: Path, ref: str) -> None:
+    """Checkout a branch, tag, or commit; only use tags/ for version-like refs."""
+
+    def try_checkout(target: str) -> bool:
+        r = subprocess.run(
+            ["git", "-C", str(root), "checkout", target],
+            capture_output=True,
+        )
+        return r.returncode == 0
+
+    if try_checkout(ref):
+        return
+
+    if _is_version_like_ref(ref) and try_checkout(f"tags/{ref}"):
+        return
+
+    subprocess.run(
+        ["git", "-C", str(root), "fetch", "origin", ref, "--depth", "1"],
+        capture_output=True,
+    )
+    if try_checkout(ref):
+        return
+
+    if _is_version_like_ref(ref):
+        subprocess.run(
+            ["git", "-C", str(root), "fetch", "origin", f"refs/tags/{ref}", "--depth", "1"],
+            capture_output=True,
+        )
+        if try_checkout(ref) or try_checkout(f"tags/{ref}"):
+            return
+
+    die(f"Cannot checkout git ref: {ref}")
 
 
 def sync_from_git(ref: str | None = None, target_version: str | None = None) -> Path:
@@ -24,10 +65,12 @@ def sync_from_git(ref: str | None = None, target_version: str | None = None) -> 
 
     if (root / ".git").is_dir():
         log(f"Updating git checkout in {root}...")
-        subprocess.run(["git", "-C", str(root), "fetch", "--tags", "--depth", "1", "origin"], check=False)
-        subprocess.run(["git", "-C", str(root), "fetch", "--tags", "origin"], check=False)
-        subprocess.run(["git", "-C", str(root), "checkout", checkout_ref], check=False)
-        subprocess.run(["git", "-C", str(root), "checkout", f"tags/{checkout_ref}"], check=False)
+        subprocess.run(["git", "-C", str(root), "fetch", "--depth", "1", "origin"], check=False)
+        subprocess.run(
+            ["git", "-C", str(root), "fetch", "origin", checkout_ref, "--depth", "1"],
+            capture_output=True,
+        )
+        checkout_git_ref(root, checkout_ref)
         subprocess.run(["git", "-C", str(root), "sparse-checkout", "set", subdir], check=False)
     else:
         log(f"Cloning {remote} (ref {checkout_ref})...")
@@ -39,8 +82,7 @@ def sync_from_git(ref: str | None = None, target_version: str | None = None) -> 
         )
         if r.returncode != 0:
             subprocess.run(["git", "clone", "--depth", "1", remote, str(root)], check=True)
-            subprocess.run(["git", "-C", str(root), "checkout", checkout_ref], check=False)
-            subprocess.run(["git", "-C", str(root), "checkout", f"tags/{checkout_ref}"], check=False)
+            checkout_git_ref(root, checkout_ref)
         subprocess.run(["git", "-C", str(root), "sparse-checkout", "init", "--cone"], check=False)
         subprocess.run(["git", "-C", str(root), "sparse-checkout", "set", subdir], check=False)
 

@@ -127,6 +127,21 @@ ensure_python
 command -v git >/dev/null 2>&1 || { log "Installing git..."; ensure_python; }
 command -v curl >/dev/null 2>&1 || die "curl required"
 
+checkout_git_ref() {
+  local repo="$1" ref="$2"
+  if git -C "$repo" checkout "$ref" 2>/dev/null; then
+    return 0
+  fi
+  case "$ref" in
+    v* | [0-9]*.[0-9]*)
+      git -C "$repo" checkout "tags/${ref}" 2>/dev/null && return 0
+      ;;
+  esac
+  git -C "$repo" fetch origin "$ref" --depth 1 2>/dev/null || true
+  git -C "$repo" checkout "$ref" 2>/dev/null && return 0
+  return 1
+}
+
 # Seed minimal tree when piped from curl (no local checkout yet)
 if [[ ! -f "${HOPPER_DIR}/pyproject.toml" ]]; then
   log "Fetching server tree (ref=${REF})..."
@@ -134,7 +149,7 @@ if [[ ! -f "${HOPPER_DIR}/pyproject.toml" ]]; then
   trap 'rm -rf "$TMP"' EXIT
   git clone --depth 1 --branch "${REF}" "${HOPPER_GIT_REMOTE}" "${TMP}/repo" 2>/dev/null \
     || git clone --depth 1 "${HOPPER_GIT_REMOTE}" "${TMP}/repo"
-  git -C "${TMP}/repo" checkout "${REF}" 2>/dev/null || git -C "${TMP}/repo" checkout "tags/${REF}" 2>/dev/null || true
+  checkout_git_ref "${TMP}/repo" "${REF}" || die "Cannot checkout git ref: ${REF}"
   SRC="${TMP}/repo/${HOPPER_GIT_SUBDIR}"
   [[ -d "$SRC" ]] || SRC="${TMP}/repo/server"
   [[ -d "$SRC" ]] || die "server/ not found in checkout"
