@@ -19,7 +19,7 @@ struct SSHHopSession {
 
 enum SSHHopConnector {
     /// Connects to the entry hop only. Downstream hops are reached via server-side hopperd routing.
-    static func connect(entry: HopNodeProfile) async throws -> SSHHopSession {
+    static func connect(entry: HopNodeProfile, hopperPort: Int) async throws -> SSHHopSession {
         TunnelLog.info("SSH connect to \(entry.trimmedUser)@\(entry.trimmedHost):\(entry.port)")
         let client: SSHClient
         do {
@@ -31,26 +31,26 @@ enum SSHHopConnector {
 
         let chainStream: SSHByteStream
         do {
-            chainStream = try await openChainStream(client: client)
+            chainStream = try await openChainStream(client: client, hopperPort: hopperPort)
         } catch {
-            throw wrap(error, step: "hopper tunnel to 127.0.0.1:\(HopConstants.hopperPort)")
+            throw wrap(error, step: "hopper tunnel to 127.0.0.1:\(hopperPort)")
         }
 
         return SSHHopSession(client: client, chainStream: chainStream)
     }
 
-    private static func openChainStream(client: SSHClient) async throws -> SSHByteStream {
+    private static func openChainStream(client: SSHClient, hopperPort: Int) async throws -> SSHByteStream {
         var lastError: Error?
         for attempt in 1...6 {
             if attempt > 1 {
                 try await Task.sleep(nanoseconds: 300_000_000)
             }
-            TunnelLog.info("Opening hopper stream to 127.0.0.1:\(HopConstants.hopperPort) (attempt \(attempt))")
+            TunnelLog.info("Opening hopper stream to 127.0.0.1:\(hopperPort) (attempt \(attempt))")
             do {
                 return try await SSHByteStream.open(
                     client: client,
                     host: "127.0.0.1",
-                    port: HopConstants.hopperPort
+                    port: hopperPort
                 )
             } catch {
                 lastError = error

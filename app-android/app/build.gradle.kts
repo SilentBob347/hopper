@@ -22,8 +22,8 @@ android {
         applicationId = "com.aengix.hopper"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.2.1"
+        versionCode = 16
+        versionName = "2.5.0"
     }
 
     signingConfigs {

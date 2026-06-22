@@ -1,7 +1,6 @@
 package com.aengix.hopper.provision
 
 import com.aengix.hopper.model.ChainTopology
-import com.aengix.hopper.model.HopConstants
 import com.aengix.hopper.model.HopNodeProfile
 import com.aengix.hopper.model.HopReadyReport
 import com.aengix.hopper.ssh.HopSSH
@@ -19,6 +18,7 @@ sealed class ChainProvisionerException(message: String) : Exception(message) {
 
 object ChainProvisioner {
     fun provision(
+        chainId: String,
         chain: List<HopNodeProfile>,
         restartHopperd: Boolean = false,
         onProgress: ((index: Int, total: Int, message: String) -> Unit)? = null,
@@ -27,11 +27,15 @@ object ChainProvisioner {
 
         val total = chain.size
         val reports = mutableListOf<HopReadyReport>()
+        val overlay = ChainTopology.overlayCIDR(chainId)
+        val skipIfRunning = !restartHopperd
 
         if (restartHopperd) {
             onProgress?.invoke(total - 1, total, "Stopping previous hopperd on all hops…")
-            chain.forEach { stopNode(it) }
+            chain.forEach { stopNode(it, chainId) }
         }
+
+        var downstreamListenPort: Int? = null
 
         for (i in (total - 1 downTo 0)) {
             val hop = chain[i]
@@ -42,15 +46,20 @@ object ChainProvisioner {
             if (i < total - 1) {
                 val downstream = chain[i + 1]
                 val pubkey = fetchPubkey(hop)
-                trustPubkey(pubkey, downstream)
+                trustPubkey(pubkey, downstream, chainId)
             }
 
             val report = startNode(
+                chainId = chainId,
                 hop = hop,
                 index = i,
                 isExit = i == total - 1,
                 next = chain.getOrNull(i + 1),
+                nextTunnelPort = downstreamListenPort,
+                overlay = overlay,
+                skipIfRunning = skipIfRunning,
             )
+            downstreamListenPort = report.listen_port ?: ChainTopology.listenPort(chainId)
             reports += report
             onProgress?.invoke(i, total, "$label ready (${report.mode} ${report.addr})")
         }
@@ -58,9 +67,9 @@ object ChainProvisioner {
         return reports.asReversed()
     }
 
-    private fun stopNode(hop: HopNodeProfile) {
+    private fun stopNode(hop: HopNodeProfile, chainId: String) {
         val install = hop.resolvedInstallDir
-        val cmd = "cd ${shellQuote(install)} && ./start_server.sh --stop-only"
+        val cmd = "cd ${shellQuote(install)} && ./hopperctl start --chain-id ${shellQuote(chainId)} --stop-only"
         runCatching {
             HopSSH.withSession(hop) { client ->
                 HopSSH.runCommand(client, cmd)
@@ -81,9 +90,9 @@ object ChainProvisioner {
         }
     }
 
-    private fun trustPubkey(pubkey: String, hop: HopNodeProfile) {
+    private fun trustPubkey(pubkey: String, hop: HopNodeProfile, chainId: String) {
         val install = hop.resolvedInstallDir
-        val cmd = "cd ${shellQuote(install)} && ./start_server.sh --trust-pubkey ${shellQuote(pubkey)} --trust-only"
+        val cmd = "cd ${shellQuote(install)} && ./hopperctl start --chain-id ${shellQuote(chainId)} --trust-pubkey ${shellQuote(pubkey)} --trust-only"
         HopSSH.withSession(hop) { client ->
             HopSSH.runCommand(client, cmd)
         }
@@ -91,36 +100,38 @@ object ChainProvisioner {
     }
 
     private fun startNode(
+        chainId: String,
         hop: HopNodeProfile,
         index: Int,
         isExit: Boolean,
         next: HopNodeProfile?,
+        nextTunnelPort: Int?,
+        overlay: String,
+        skipIfRunning: Boolean,
     ): HopReadyReport {
         val install = hop.resolvedInstallDir
-        val addr = ChainTopology.overlayAddr(index)
+        val addr = ChainTopology.overlayAddr(chainId, index)
         val args = buildList {
-            add("--role")
-            add(if (isExit) "exit" else "relay")
-            add("--addr")
-            add(addr)
-            add("--index")
-            add(index.toString())
-            add("--overlay")
-            add(HopConstants.TUNNEL_IPV4_SUBNET)
-            add("--client-addr")
-            add(HopConstants.TUNNEL_IPV4_ADDRESS)
+            add("--chain-id"); add(chainId)
+            add("--role"); add(if (isExit) "exit" else "relay")
+            add("--addr"); add(addr)
+            add("--index"); add(index.toString())
+            add("--overlay"); add(overlay)
+            if (skipIfRunning) {
+                add("--if-running"); add("skip")
+            }
             if (next != null) {
-                add("--next-host")
-                add(next.trimmedHost)
-                add("--next-port")
-                add(next.port.toString())
-                add("--next-user")
-                add(next.trimmedUser)
+                add("--next-host"); add(next.trimmedHost)
+                add("--next-port"); add(next.port.toString())
+                add("--next-user"); add(next.trimmedUser)
+                if (nextTunnelPort != null) {
+                    add("--next-tunnel-port"); add(nextTunnelPort.toString())
+                }
             }
         }
 
         val argString = args.joinToString(" ") { shellQuote(it) }
-        val cmd = "cd ${shellQuote(install)} && ./start_server.sh $argString"
+        val cmd = "cd ${shellQuote(install)} && ./hopperctl start $argString"
 
         return HopSSH.withSession(hop) { client ->
             val output = HopSSH.runCommand(client, cmd)
@@ -131,3 +142,9 @@ object ChainProvisioner {
     private fun shellQuote(value: String): String =
         "'" + value.replace("'", "'\\''") + "'"
 }
+
+private val HopNodeProfile.resolvedInstallDir: String
+    get() {
+        val trimmed = installDir.trim()
+        return trimmed.ifEmpty { com.aengix.hopper.model.HopConstants.DEFAULT_INSTALL_DIR }
+    }

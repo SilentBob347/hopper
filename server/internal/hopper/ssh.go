@@ -11,7 +11,7 @@ import (
 	"github.com/aengix/hopper/server/internal/log"
 )
 
-func dialNextHop(next NextHop, listenPort int) (net.Conn, error) {
+func dialNextHop(next NextHop) (net.Conn, error) {
 	keyBytes, err := os.ReadFile(next.KeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("read key %s: %w", next.KeyPath, err)
@@ -35,7 +35,11 @@ func dialNextHop(next NextHop, listenPort int) (net.Conn, error) {
 		return nil, fmt.Errorf("ssh dial %s: %w", addr, err)
 	}
 
-	target := fmt.Sprintf("%s:%d", DefaultListenHost, listenPort)
+	tunnelPort := next.TunnelPort
+	if tunnelPort == 0 {
+		tunnelPort = DefaultListenPort
+	}
+	target := fmt.Sprintf("%s:%d", DefaultListenHost, tunnelPort)
 	log.Infof("ssh forward -> %s", target)
 
 	channel, reqs, err := client.Conn.OpenChannel("direct-tcpip", ssh.Marshal(struct {
@@ -45,7 +49,7 @@ func dialNextHop(next NextHop, listenPort int) (net.Conn, error) {
 		Lport uint32
 	}{
 		Raddr: DefaultListenHost,
-		Rport: uint32(listenPort),
+		Rport: uint32(tunnelPort),
 		Laddr: "127.0.0.1",
 		Lport: 0,
 	}))

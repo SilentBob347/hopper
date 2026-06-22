@@ -2,6 +2,7 @@ package com.aengix.hopper
 
 import android.app.Application
 import com.aengix.hopper.data.ProfileStore
+import com.aengix.hopper.model.HopVersion
 import com.aengix.hopper.ssh.HopSecurityProviders
 
 class HopperApp : Application() {
@@ -9,5 +10,6 @@ class HopperApp : Application() {
         super.onCreate()
         HopSecurityProviders.ensureRegistered()
         ProfileStore.init(this)
+        HopVersion.init(this)
     }
 }

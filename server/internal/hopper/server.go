@@ -15,12 +15,23 @@ type Server struct {
 	cfg      Config
 	sessions atomic.Int32
 	tun      io.ReadWriteCloser
-	active   atomic.Pointer[Session]
+	registry *SessionRegistry
+	leases   *LeaseManager
+	status   *StatusWriter
 	tunOnce  sync.Once
 }
 
-func NewServer(cfg Config) *Server {
-	return &Server{cfg: cfg}
+func NewServer(cfg Config) (*Server, error) {
+	leases, err := NewLeaseManager(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &Server{
+		cfg:      cfg,
+		registry: NewSessionRegistry(),
+		leases:   leases,
+		status:   NewStatusWriter(cfg),
+	}, nil
 }
 
 func (s *Server) Prepare() error {
@@ -35,7 +46,7 @@ func (s *Server) Prepare() error {
 	}
 	if err := iptunnel.ConfigureTUN(s.cfg.TUN, s.cfg.Addr, s.cfg.Overlay); err != nil {
 		_ = tun.Close()
-		return fmt.Errorf("configure tun: %w", err)
+		return fmt.Errorf("configure tun: %w", s.cfg.TUN, err)
 	}
 	s.tun = tun
 	s.startTUNReader()
@@ -62,9 +73,14 @@ func (s *Server) startTUNReader() {
 					return
 				}
 				packet := append([]byte(nil), buf[:n]...)
-				sess := s.active.Load()
+				dest, err := IPv4Dest(packet)
+				if err != nil {
+					log.Debugf("tun packet skip: %v", err)
+					continue
+				}
+				sess := s.registry.Lookup(dest)
 				if sess == nil {
-					log.Debugf("tun packet dropped (no active session)")
+					log.Debugf("tun packet dropped (no session for %s)", dest)
 					continue
 				}
 				if err := sess.routePacket(packet, ViaTun); err != nil {
@@ -88,7 +104,7 @@ func (s *Server) Listen() (net.Listener, int, error) {
 		return nil, 0, err
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	log.Infof("hopperd bound %s mode=%s overlay=%s", addr, s.cfg.Mode(), s.cfg.Overlay)
+	log.Infof("hopperd bound %s mode=%s overlay=%s chain=%s", addr, s.cfg.Mode(), s.cfg.Overlay, s.cfg.ChainID)
 	return ln, port, nil
 }
 
@@ -105,4 +121,19 @@ func (s *Server) ServeConn(conn net.Conn) {
 		return
 	}
 	_ = sess.Run()
+}
+
+func (s *Server) clientPoolContains(ip net.IP) bool {
+	if s.cfg.ClientPool == "" || ip == nil {
+		return false
+	}
+	_, pool, err := net.ParseCIDR(s.cfg.ClientPool)
+	if err != nil {
+		return false
+	}
+	return pool.Contains(ip)
+}
+
+func (s *Server) sessionForDest(dest net.IP) *Session {
+	return s.registry.Lookup(dest)
 }

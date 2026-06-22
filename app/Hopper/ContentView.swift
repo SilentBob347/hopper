@@ -107,6 +107,23 @@ struct ContentView: View {
             }
             .navigationTitle("\(HopConstants.appDisplayName) \(HopConstants.appVersion)")
             .navigationBarTitleDisplayMode(.inline)
+            .alert(
+                "Update servers?",
+                isPresented: Binding(
+                    get: { vpn.serverUpdatePrompt != nil },
+                    set: { if !$0 { vpn.cancelServerUpdate() } }
+                ),
+                presenting: vpn.serverUpdatePrompt
+            ) { prompt in
+                Button("Update \(prompt.hops.count) hop(s)") {
+                    Task { await vpn.confirmServerUpdate() }
+                }
+                Button("Cancel", role: .cancel) {
+                    vpn.cancelServerUpdate()
+                }
+            } message: { prompt in
+                Text("Server software is older than app v\(prompt.targetVersion). Update before connecting?")
+            }
         }
     }
 

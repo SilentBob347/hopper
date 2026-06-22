@@ -1,0 +1,1 @@
+# Hopper server tooling — stdlib-only for now; extend via venv as needed.

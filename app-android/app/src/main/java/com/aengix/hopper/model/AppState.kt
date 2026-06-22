@@ -7,6 +7,7 @@ data class AppState(
     val servers: List<HopNodeProfile> = emptyList(),
     val chains: List<HopChain> = emptyList(),
     val selectedChainID: String? = null,
+    val deployKeys: List<DeploySSHKey> = emptyList(),
 ) {
     val selectedChain: HopChain?
         get() = selectedChainID?.let { id -> chains.firstOrNull { it.id == id } }
@@ -22,6 +23,10 @@ data class AppState(
         chain.hopIDs.mapNotNull { server(it) }
 
     fun addServer(server: HopNodeProfile): AppState = copy(servers = servers + server)
+
+    fun addDeployKey(key: DeploySSHKey): AppState = copy(deployKeys = deployKeys + key)
+
+    fun deployKey(id: String): DeploySSHKey? = deployKeys.firstOrNull { it.id == id }
 
     fun renameServer(id: String, name: String): AppState =
         copy(servers = servers.map { if (it.id == id) it.copy(name = name) else it })

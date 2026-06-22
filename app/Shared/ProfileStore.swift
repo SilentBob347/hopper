@@ -60,6 +60,18 @@ enum ProfileStore {
         }
     }
 
+    static func deviceID() -> UUID {
+        guard let containerURL else { return UUID() }
+        let url = containerURL.appendingPathComponent(HopConstants.deviceIDKey)
+        if let text = try? String(contentsOf: url, encoding: .utf8),
+           let existing = UUID(uuidString: text.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            return existing
+        }
+        let fresh = UUID()
+        try? fresh.uuidString.write(to: url, atomically: true, encoding: .utf8)
+        return fresh
+    }
+
     private static var lastErrorURL: URL? {
         containerURL?.appendingPathComponent(HopConstants.tunnelLastErrorFileName)
     }

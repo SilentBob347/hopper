@@ -11,19 +11,22 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
 
         do {
-            let excluded = try await coordinator.prepare(options: startOptions)
+            let prepared = try await coordinator.prepare(options: startOptions)
 
             let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: HopConstants.tunnelRemoteAddress)
             let ipv4 = NEIPv4Settings(
-                addresses: [HopConstants.tunnelIPv4Address],
+                addresses: [prepared.clientIPv4],
                 subnetMasks: [HopConstants.tunnelIPv4Mask]
             )
             ipv4.includedRoutes = [NEIPv4Route.default()]
-            var excludedRoutes = excluded.map {
+            var excludedRoutes = prepared.excludedRoutes.map {
                 NEIPv4Route(destinationAddress: $0, subnetMask: "255.255.255.255")
             }
             excludedRoutes.append(NEIPv4Route(destinationAddress: "127.0.0.0", subnetMask: "255.0.0.0"))
-            excludedRoutes.append(NEIPv4Route(destinationAddress: "10.64.0.0", subnetMask: "255.255.255.0"))
+            excludedRoutes.append(NEIPv4Route(
+                destinationAddress: prepared.overlaySubnet,
+                subnetMask: ChainTopology.overlayMask()
+            ))
             ipv4.excludedRoutes = excludedRoutes
             settings.ipv4Settings = ipv4
 
@@ -39,7 +42,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             settings.mtu = NSNumber(value: HopConstants.tunnelMTU)
 
             try await setTunnelNetworkSettings(settings)
-            TunnelLog.info("TUN routes applied")
+            TunnelLog.info("TUN routes applied client=\(prepared.clientIPv4)")
             coordinator.startRelay(packetFlow: packetFlow)
         } catch {
             failTunnel(HopErrorDetails.describe(error))

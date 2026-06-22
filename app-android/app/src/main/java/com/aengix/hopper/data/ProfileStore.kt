@@ -85,6 +85,16 @@ object ProfileStore {
     fun clearLastTunnelError() {
         runCatching { lastErrorFile.delete() }
     }
+
+    fun deviceId(): String {
+        val file = File(appContext.filesDir, HopConstants.DEVICE_ID_KEY)
+        if (file.exists()) {
+            file.readText().trim().takeIf { it.isNotEmpty() }?.let { return it }
+        }
+        val fresh = java.util.UUID.randomUUID().toString()
+        file.writeText(fresh)
+        return fresh
+    }
 }
 
 @Serializable

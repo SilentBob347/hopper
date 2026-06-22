@@ -11,6 +11,8 @@ data class HopReadyReport(
     val index: Int,
     val overlay: String,
     val port: Int,
+    val listen_port: Int? = null,
+    val chain_id: String? = null,
     val nat: Boolean? = null,
 ) {
     companion object {
@@ -32,3 +34,34 @@ data class HopReadyReport(
         }
     }
 }
+
+@Serializable
+data class ChainStatusReport(
+    val host: String? = null,
+    val server_version: String? = null,
+    val min_app_version: String? = null,
+    val checked_at: String? = null,
+    val chains: List<ChainStatusEntry> = emptyList(),
+)
+
+@Serializable
+data class ChainStatusEntry(
+    val chain_id: String? = null,
+    val overlay: String? = null,
+    val listen_port: Int? = null,
+    val role: String? = null,
+    val hop_addr: String? = null,
+    val started_at: String? = null,
+    val running: Boolean? = null,
+    val last_activity: String? = null,
+    val sessions: List<ChainSessionStatus> = emptyList(),
+)
+
+@Serializable
+data class ChainSessionStatus(
+    val client_addr: String? = null,
+    val device_id: String? = null,
+    val connected_at: String? = null,
+    val last_seen: String? = null,
+    val remote: String? = null,
+)

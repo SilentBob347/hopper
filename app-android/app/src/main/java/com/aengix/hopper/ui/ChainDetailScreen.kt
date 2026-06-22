@@ -80,6 +80,28 @@ fun ChainDetailScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            Text("Status", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
+            val statusReports by vpn.chainStatusReports.collectAsState()
+            val reports = statusReports[chainId].orEmpty()
+            Button(onClick = { vpn.fetchChainStatus(chainId) }, enabled = hops.isNotEmpty()) {
+                Text("Refresh status")
+            }
+            reports.forEachIndexed { index, report ->
+                val hop = hops.getOrNull(index)
+                Text(
+                    hop?.displayName ?: report.host.orEmpty(),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                report.server_version?.let { Text("Server v$it", style = MaterialTheme.typography.bodySmall) }
+                report.chains.forEach { entry ->
+                    Text(
+                        "${entry.role ?: "?"} · ${if (entry.running == true) "running" else "stopped"} · ${entry.sessions.size} session(s)",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+
             Text(
                 "Route (entry → exit)",
                 style = MaterialTheme.typography.titleMedium,

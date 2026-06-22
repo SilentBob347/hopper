@@ -80,7 +80,7 @@ final class IPTunnelEngine {
                     break
                 }
 
-                guard cursor[0] == 1 else {
+                guard cursor[0] == IPTunnelFrame.wireVersion else {
                     fail("Invalid iptunnel frame: badVersion (stream misaligned, head=\(Self.hexPreview(cursor)))")
                     return
                 }
@@ -112,7 +112,7 @@ final class IPTunnelEngine {
                     switch frame.type {
                     case .data:
                         packetIO.writePackets([frame.payload], withProtocols: [AF_INET as NSNumber])
-                    case .keepalive:
+                    case .keepalive, .assignReq, .assignResp:
                         break
                     }
                 } catch {

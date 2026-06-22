@@ -1,14 +1,22 @@
 import Foundation
 import NetworkExtension
 
+struct TunnelPrepareResult {
+    let excludedRoutes: [String]
+    let clientIPv4: String
+    let overlaySubnet: String
+}
+
 enum TunnelCoordinatorError: LocalizedError {
     case missingHop
     case missingHopInOptions
+    case missingContext
 
     var errorDescription: String? {
         switch self {
         case .missingHop: return "No server selected in the app."
         case .missingHopInOptions: return "Tunnel start options did not include the server profile."
+        case .missingContext: return "Tunnel start options did not include chain context."
         }
     }
 }
@@ -19,7 +27,7 @@ final class TunnelCoordinator {
     private var sshSession: SSHHopSession?
     private var ipEngine: IPTunnelEngine?
 
-    func prepare(options: [String: NSObject]?) async throws -> [String] {
+    func prepare(options: [String: NSObject]?) async throws -> TunnelPrepareResult {
         let hop: HopNodeProfile
         if let fromOptions = TunnelBootstrap.hop(from: options) {
             hop = fromOptions
@@ -31,13 +39,29 @@ final class TunnelCoordinator {
             throw TunnelCoordinatorError.missingHopInOptions
         }
 
-        TunnelLog.info("SSH entry \(hop.trimmedUser)@\(hop.trimmedHost):\(hop.port)")
-        let session = try await SSHHopConnector.connect(entry: hop)
+        guard let context = TunnelBootstrap.context(from: options) else {
+            throw TunnelCoordinatorError.missingContext
+        }
+
+        TunnelLog.info("SSH entry \(hop.trimmedUser)@\(hop.trimmedHost):\(hop.port) chain=\(context.chainID)")
+        let session = try await SSHHopConnector.connect(entry: hop, hopperPort: context.hopperPort)
         sshSession = session
+
+        let clientIP = try await IPTunnelAssignClient.performAssign(
+            on: session.chainStream,
+            deviceID: context.deviceID,
+            chainID: context.chainID
+        )
 
         let excluded = Self.resolveExcludedIPv4(host: hop.trimmedHost)
         TunnelLog.info("Entry hop excluded from routes: \(excluded.joined(separator: ", "))")
-        return excluded
+        TunnelLog.info("Assigned client overlay IP: \(clientIP)")
+
+        return TunnelPrepareResult(
+            excludedRoutes: excluded,
+            clientIPv4: clientIP,
+            overlaySubnet: ChainTopology.overlaySubnet(chainID: context.chainID)
+        )
     }
 
     func startRelay(packetFlow: NEPacketTunnelFlow) {
@@ -115,5 +139,28 @@ final class TunnelCoordinator {
     private func handleSSHFailure(_ message: String) {
         TunnelLog.error(message)
         onSessionFailure?(message)
+    }
+}
+
+enum IPTunnelAssignClient {
+    static func performAssign(on stream: SSHByteStream, deviceID: UUID, chainID: UUID) async throws -> String {
+        let req = AssignRequest(deviceID: deviceID.uuidString, chainID: chainID.uuidString)
+        let reqData = try JSONEncoder().encode(req)
+        let frame = IPTunnelFrame(type: .assignReq, payload: reqData)
+        try await stream.write(frame.encoded())
+
+        let responseData = try await stream.read()
+        let respFrame = try IPTunnelFrame.decode(from: responseData)
+        guard respFrame.type == .assignResp else {
+            throw IPTunnelProtocolError.assignFailed("expected assign response")
+        }
+        let resp = try JSONDecoder().decode(AssignResponse.self, from: respFrame.payload)
+        if let error = resp.error {
+            throw IPTunnelProtocolError.assignFailed(error)
+        }
+        guard let addr = resp.addr else {
+            throw IPTunnelProtocolError.assignFailed("missing addr")
+        }
+        return addr
     }
 }

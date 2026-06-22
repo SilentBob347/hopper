@@ -3,10 +3,13 @@ package com.aengix.hopper.vpn
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import com.aengix.hopper.model.ChainTopology
 import com.aengix.hopper.model.HopConstants
 import com.aengix.hopper.model.HopNodeProfile
+import com.aengix.hopper.model.TunnelConnectContext
 import com.aengix.hopper.ssh.SSHHopConnector
 import com.aengix.hopper.ssh.SSHHopSession
+import com.aengix.hopper.tunnel.IPTunnelAssignClient
 import com.aengix.hopper.tunnel.IPTunnelEngine
 import com.aengix.hopper.util.IPv4Only
 import com.aengix.hopper.util.TunnelLog
@@ -16,6 +19,11 @@ import kotlinx.serialization.json.Json
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.Inet4Address
+
+data class TunnelPrepareResult(
+    val tunInterface: ParcelFileDescriptor,
+    val sinkholeIPv6: Boolean,
+)
 
 class TunnelCoordinator(
     private val vpnService: VpnService,
@@ -27,19 +35,31 @@ class TunnelCoordinator(
     private var tunInterface: ParcelFileDescriptor? = null
     private var sinkholeIPv6 = false
 
-    suspend fun prepare(hop: HopNodeProfile): ParcelFileDescriptor {
+    suspend fun prepare(hop: HopNodeProfile, context: TunnelConnectContext): TunnelPrepareResult {
+        TunnelLog.info("SSH entry ${hop.trimmedUser}@${hop.trimmedHost}:${hop.port} chain=${context.chainId}")
+        sshSession = SSHHopConnector.connect(entry = hop, hopperPort = context.hopperPort) { socket ->
+            val protected = vpnService.protect(socket)
+            if (!protected) {
+                TunnelLog.error("VPN protect() failed for entry SSH socket")
+            }
+            protected
+        }
+
+        val clientIP = IPTunnelAssignClient.performAssign(
+            stream = sshSession!!.chainStream,
+            deviceId = context.deviceId,
+            chainId = context.chainId,
+        )
+        TunnelLog.info("Assigned client overlay IP: $clientIP")
+
         val builder = vpnService.Builder()
         builder.setSession(HopConstants.APP_DISPLAY_NAME)
         builder.setMtu(HopConstants.TUNNEL_MTU)
-        // IPv4-only VPN. Do not add any IPv6 address, route, or DNS — on Android 10+
-        // the platform blocks IPv6 egress while this VPN is active. On older versions
-        // we sinkhole ::/0 into the TUN and drop those packets in IPTunnelEngine.
-        builder.addAddress(HopConstants.TUNNEL_IPV4_ADDRESS, 24)
+        builder.addAddress(clientIP, HopConstants.TUNNEL_IPV4_MASK_BITS)
         builder.addRoute("0.0.0.0", 0)
         builder.addDnsServer("1.1.1.1")
         builder.addDnsServer("8.8.8.8")
-        val sinkholeIPv6 = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
-        this.sinkholeIPv6 = sinkholeIPv6
+        sinkholeIPv6 = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
         if (sinkholeIPv6) {
             builder.addAddress(HopConstants.TUNNEL_IPV6_SINKHOLE, 128)
             builder.addRoute("::", 0)
@@ -55,21 +75,18 @@ class TunnelCoordinator(
             TunnelLog.info("Entry hop excluded from routes: $entryIp")
         }
 
+        val overlaySubnet = ChainTopology.overlaySubnet(context.chainId)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            builder.excludeRoute(
+                android.net.IpPrefix(Inet4Address.getByName(overlaySubnet), 24),
+            )
+        }
+
         val iface = establishInterface(builder)
         tunInterface = iface
-
-        // Routing can lag briefly after displacing another VPN.
         delay(500)
 
-        TunnelLog.info("SSH entry ${hop.trimmedUser}@${hop.trimmedHost}:${hop.port}")
-        sshSession = SSHHopConnector.connect(entry = hop) { socket ->
-            val protected = vpnService.protect(socket)
-            if (!protected) {
-                TunnelLog.error("VPN protect() failed for entry SSH socket")
-            }
-            protected
-        }
-        return iface
+        return TunnelPrepareResult(iface, sinkholeIPv6)
     }
 
     private suspend fun establishInterface(builder: VpnService.Builder): ParcelFileDescriptor {
@@ -123,6 +140,9 @@ class TunnelCoordinatorException(message: String) : Exception(message)
 
 object TunnelBootstrap {
     const val HOP_KEY = "hop"
+    const val CONTEXT_KEY = "context"
 
     fun hopJson(hop: HopNodeProfile): String = Json.encodeToString(hop)
+
+    fun contextJson(context: TunnelConnectContext): String = Json.encodeToString(context)
 }

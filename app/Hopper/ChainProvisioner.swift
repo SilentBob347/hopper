@@ -6,6 +6,7 @@ enum ChainProvisionerError: LocalizedError {
     case invalidReadyJSON(String)
     case missingPubkey(String)
     case provisionFailed(String)
+    case missingChainID
 
     var errorDescription: String? {
         switch self {
@@ -18,6 +19,8 @@ enum ChainProvisionerError: LocalizedError {
             return "Could not read SSH public key on \(hop)."
         case .provisionFailed(let detail):
             return detail
+        case .missingChainID:
+            return "Chain ID is missing."
         }
     }
 }
@@ -27,6 +30,7 @@ enum ChainProvisioner {
 
     /// Provisions hops from exit (last) to entry (first).
     static func provision(
+        chainID: UUID,
         chain: [HopNodeProfile],
         restartHopperd: Bool = false,
         onProgress: ProgressHandler? = nil
@@ -35,13 +39,17 @@ enum ChainProvisioner {
 
         let total = chain.count
         var reports: [HopReadyReport] = []
+        let overlay = ChainTopology.overlayCIDR(chainID: chainID)
+        let skipIfRunning = !restartHopperd
 
         if restartHopperd {
             onProgress?(total - 1, total, "Stopping previous hopperd on all hops…")
             for hop in chain {
-                await stopNode(hop)
+                await stopNode(hop, chainID: chainID)
             }
         }
+
+        var downstreamListenPort: Int?
 
         for i in stride(from: total - 1, through: 0, by: -1) {
             let hop = chain[i]
@@ -52,15 +60,20 @@ enum ChainProvisioner {
             if i < total - 1 {
                 let downstream = chain[i + 1]
                 let pubkey = try await fetchPubkey(from: hop)
-                try await trustPubkey(pubkey, on: downstream)
+                try await trustPubkey(pubkey, on: downstream, chainID: chainID)
             }
 
             let report = try await startNode(
+                chainID: chainID,
                 hop: hop,
                 index: i,
                 isExit: i == total - 1,
-                next: i < total - 1 ? chain[i + 1] : nil
+                next: i < total - 1 ? chain[i + 1] : nil,
+                nextTunnelPort: downstreamListenPort,
+                overlay: overlay,
+                skipIfRunning: skipIfRunning
             )
+            downstreamListenPort = report.listenPort ?? ChainTopology.listenPort(chainID: chainID)
             reports.append(report)
             onProgress?(i, total, "\(label) ready (\(report.mode) \(report.addr))")
         }
@@ -68,9 +81,9 @@ enum ChainProvisioner {
         return reports.reversed()
     }
 
-    private static func stopNode(_ hop: HopNodeProfile) async {
+    private static func stopNode(_ hop: HopNodeProfile, chainID: UUID) async {
         let install = hop.resolvedInstallDir
-        let cmd = "cd \(shellQuote(install)) && ./start_server.sh --stop-only"
+        let cmd = "cd \(shellQuote(install)) && ./hopperctl start --chain-id \(shellQuote(chainID.uuidString)) --stop-only"
         do {
             try await HopSSH.withSession(on: hop) { client in
                 _ = try await HopSSH.runCommand(on: client, cmd)
@@ -92,9 +105,9 @@ enum ChainProvisioner {
         }
     }
 
-    private static func trustPubkey(_ pubkey: String, on hop: HopNodeProfile) async throws {
+    private static func trustPubkey(_ pubkey: String, on hop: HopNodeProfile, chainID: UUID) async throws {
         let install = hop.resolvedInstallDir
-        let cmd = "cd \(shellQuote(install)) && ./start_server.sh --trust-pubkey \(shellQuote(pubkey)) --trust-only"
+        let cmd = "cd \(shellQuote(install)) && ./hopperctl start --chain-id \(shellQuote(chainID.uuidString)) --trust-pubkey \(shellQuote(pubkey)) --trust-only"
         try await HopSSH.withSession(on: hop) { client in
             _ = try await HopSSH.runCommand(on: client, cmd)
         }
@@ -102,30 +115,40 @@ enum ChainProvisioner {
     }
 
     private static func startNode(
+        chainID: UUID,
         hop: HopNodeProfile,
         index: Int,
         isExit: Bool,
-        next: HopNodeProfile?
+        next: HopNodeProfile?,
+        nextTunnelPort: Int?,
+        overlay: String,
+        skipIfRunning: Bool
     ) async throws -> HopReadyReport {
         let install = hop.resolvedInstallDir
-        let addr = ChainTopology.overlayAddr(index: index)
+        let addr = ChainTopology.overlayAddr(chainID: chainID, index: index)
         var args = [
+            "--chain-id", chainID.uuidString,
             "--role", isExit ? "exit" : "relay",
             "--addr", addr,
             "--index", String(index),
-            "--overlay", HopConstants.tunnelIPv4Subnet,
+            "--overlay", overlay,
         ]
-        args += ["--client-addr", HopConstants.tunnelIPv4Address]
+        if skipIfRunning {
+            args += ["--if-running", "skip"]
+        }
         if let next {
             args += [
                 "--next-host", next.trimmedHost,
                 "--next-port", String(next.port),
                 "--next-user", next.trimmedUser,
             ]
+            if let nextTunnelPort {
+                args += ["--next-tunnel-port", String(nextTunnelPort)]
+            }
         }
 
         let argString = args.map(shellQuote).joined(separator: " ")
-        let cmd = "cd \(shellQuote(install)) && ./start_server.sh \(argString)"
+        let cmd = "cd \(shellQuote(install)) && ./hopperctl start \(argString)"
 
         return try await HopSSH.withSession(on: hop) { client in
             let output = try await HopSSH.runCommand(on: client, cmd)

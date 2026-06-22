@@ -3,9 +3,12 @@ import Foundation
 enum IPTunnelFrameType: UInt8 {
     case data = 1
     case keepalive = 2
+    case assignReq = 3
+    case assignResp = 4
 }
 
 struct IPTunnelFrame {
+    static let wireVersion: UInt8 = 2
     static let headerLength = 4
     static let maxPacketLength = 65_535
 
@@ -19,7 +22,7 @@ struct IPTunnelFrame {
 
     func encoded() -> Data {
         var data = Data(count: Self.headerLength + payload.count)
-        data[0] = 1
+        data[0] = Self.wireVersion
         data[1] = type.rawValue
         data.storeUInt16BE(UInt16(payload.count), at: 2)
         if !payload.isEmpty {
@@ -30,7 +33,7 @@ struct IPTunnelFrame {
 
     static func decode(from data: Data) throws -> IPTunnelFrame {
         guard data.count >= headerLength else { throw IPTunnelProtocolError.truncated }
-        guard data[0] == 1 else { throw IPTunnelProtocolError.badVersion }
+        guard data[0] == wireVersion else { throw IPTunnelProtocolError.badVersion }
 
         guard let type = IPTunnelFrameType(rawValue: data[1]) else {
             throw IPTunnelProtocolError.badType
@@ -49,7 +52,36 @@ struct IPTunnelFrame {
         case .keepalive:
             guard payloadLength == 0 else { throw IPTunnelProtocolError.truncated }
             return IPTunnelFrame(type: type)
+        case .assignReq, .assignResp:
+            guard data.count >= headerLength + payloadLength else {
+                throw IPTunnelProtocolError.truncated
+            }
+            let payload = payloadLength > 0
+                ? data.subdata(in: headerLength..<(headerLength + payloadLength))
+                : Data()
+            return IPTunnelFrame(type: type, payload: payload)
         }
+    }
+}
+
+struct AssignRequest: Codable {
+    let deviceID: String
+    let chainID: String
+
+    enum CodingKeys: String, CodingKey {
+        case deviceID = "device_id"
+        case chainID = "chain_id"
+    }
+}
+
+struct AssignResponse: Codable {
+    let addr: String?
+    let leaseTTL: Int?
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case addr, error
+        case leaseTTL = "lease_ttl"
     }
 }
 
@@ -58,6 +90,7 @@ enum IPTunnelProtocolError: Error {
     case badVersion
     case badType
     case packetTooLarge
+    case assignFailed(String)
 }
 
 extension Data {

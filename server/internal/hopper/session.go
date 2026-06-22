@@ -1,9 +1,11 @@
 package hopper
 
 import (
+	"encoding/json"
 	"net"
 	"sync"
 
+	"github.com/aengix/hopper/server/internal/iptunnel"
 	"github.com/aengix/hopper/server/internal/log"
 )
 
@@ -13,6 +15,10 @@ type Session struct {
 	routes     *RouteTable
 	ingress    *frameConn
 	downstream *frameConn
+	clientIP   net.IP
+	deviceID   string
+	info       *SessionInfo
+	mu         sync.Mutex
 }
 
 func NewSession(srv *Server, ingress net.Conn) (*Session, error) {
@@ -29,7 +35,7 @@ func NewSession(srv *Server, ingress net.Conn) (*Session, error) {
 	}
 
 	if srv.cfg.HasNext() {
-		down, err := dialNextHop(*srv.cfg.Next, srv.cfg.ListenPort)
+		down, err := dialNextHop(*srv.cfg.Next)
 		if err != nil {
 			return nil, err
 		}
@@ -42,11 +48,24 @@ func NewSession(srv *Server, ingress net.Conn) (*Session, error) {
 func (s *Session) Run() error {
 	log.Infof("session start mode=%s remote=%s", s.cfg.Mode(), s.ingress.RemoteAddr())
 
-	s.srv.active.Store(s)
-	defer s.srv.active.Store(nil)
+	s.info = s.srv.status.Register(s, s.ingress.RemoteAddr().String())
+	defer func() {
+		s.srv.status.Unregister(s)
+		if s.clientIP != nil {
+			s.srv.registry.Unregister(s.clientIP)
+		}
+	}()
+
+	if s.srv.leases != nil {
+		if err := s.handleAssign(); err != nil {
+			log.Infof("assign failed: %v", err)
+			return err
+		}
+	}
 
 	stop := make(chan struct{})
 	defer close(stop)
+	s.srv.status.StartPeriodicFlush(stop)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
@@ -86,14 +105,88 @@ func (s *Session) Run() error {
 	return err
 }
 
+func (s *Session) handleAssign() error {
+	frame, err := iptunnel.ReadFrame(s.ingress)
+	if err != nil {
+		return err
+	}
+	if frame.Type != iptunnel.TypeAssignReq {
+		return iptunnel.ErrBadType
+	}
+
+	respPayload, err := s.srv.leases.HandleAssign(frame.Payload)
+	if err != nil {
+		return err
+	}
+
+	var resp assignResponse
+	if err := json.Unmarshal(respPayload, &resp); err != nil {
+		return err
+	}
+	if resp.Error != "" {
+		return &assignError{resp.Error}
+	}
+
+	if err := s.ingress.writeFrame(iptunnel.Frame{Type: iptunnel.TypeAssignResp, Payload: respPayload}); err != nil {
+		return err
+	}
+
+	s.clientIP = net.ParseIP(resp.Addr)
+	var req assignRequest
+	_ = json.Unmarshal(frame.Payload, &req)
+	s.deviceID = req.DeviceID
+	s.srv.registry.Register(s.clientIP, s)
+	s.srv.status.BindClient(s, resp.Addr, req.DeviceID)
+	log.Infof("client assigned addr=%s device=%s", resp.Addr, req.DeviceID)
+	return nil
+}
+
+type assignError struct{ msg string }
+
+func (e *assignError) Error() string { return e.msg }
+
+func (s *Session) bindFromPacket(packet []byte) {
+	if s.clientIP != nil {
+		return
+	}
+	src, err := IPv4Source(packet)
+	if err != nil || src == nil {
+		return
+	}
+	if !s.srv.clientPoolContains(src) {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.clientIP != nil {
+		return
+	}
+	s.clientIP = src
+	s.srv.registry.Register(src, s)
+	s.srv.status.BindClient(s, src.String(), "")
+	log.Infof("session bound to client src=%s", src)
+}
+
 func (s *Session) routePacket(packet []byte, from string) error {
+	if from == ViaIngress {
+		s.bindFromPacket(packet)
+	}
+	if s.clientIP != nil {
+		s.srv.leases.Touch(s.clientIP.String())
+		s.srv.status.Touch(s)
+	}
+
 	dest, err := IPv4Dest(packet)
 	if err != nil {
 		log.Debugf("skip non-ipv4 packet from %s: %v", from, err)
 		return nil
 	}
 
-	if s.cfg.ClientAddr != "" && from == ViaNext && dest.String() == s.cfg.ClientAddr {
+	if from == ViaNext && s.srv.clientPoolContains(dest) {
+		target := s.srv.sessionForDest(dest)
+		if target != nil {
+			return writeData(target.ingress, packet)
+		}
 		return writeData(s.ingress, packet)
 	}
 

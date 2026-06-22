@@ -4,6 +4,7 @@ struct AppState: Codable, Equatable {
     var servers: [HopNodeProfile] = []
     var chains: [HopChain] = []
     var selectedChainID: UUID?
+    var deployKeys: [DeploySSHKey] = []
 
     var selectedChain: HopChain? {
         guard let selectedChainID else { return nil }
@@ -28,6 +29,20 @@ struct AppState: Codable, Equatable {
 
     mutating func addServer(_ server: HopNodeProfile) {
         servers.append(server)
+    }
+
+    mutating func addDeployKey(_ key: DeploySSHKey) {
+        deployKeys.append(key)
+    }
+
+    mutating func removeDeployKeys(at offsets: IndexSet) {
+        for index in offsets.sorted(by: >) where deployKeys.indices.contains(index) {
+            deployKeys.remove(at: index)
+        }
+    }
+
+    func deployKey(id: UUID) -> DeploySSHKey? {
+        deployKeys.first { $0.id == id }
     }
 
     mutating func renameServer(id: UUID, name: String) {

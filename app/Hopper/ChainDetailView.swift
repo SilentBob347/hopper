@@ -6,6 +6,7 @@ struct ChainDetailView: View {
 
     @State private var name: String = ""
     @State private var showAddServer = false
+    @State private var statusLoading = false
 
     private var chain: HopChain? {
         vpn.state.chains.first { $0.id == chainID }
@@ -14,6 +15,10 @@ struct ChainDetailView: View {
     private var hops: [HopNodeProfile] {
         guard let chain else { return [] }
         return vpn.state.resolveHops(chain)
+    }
+
+    private var statusReports: [ChainStatusReport] {
+        vpn.chainStatusReports[chainID] ?? []
     }
 
     var body: some View {
@@ -25,6 +30,45 @@ struct ChainDetailView: View {
                             .onChange(of: name) { _, newValue in
                                 vpn.renameChain(id: chainID, name: newValue)
                             }
+                    }
+
+                    Section("Status") {
+                        Button(statusLoading ? "Loading…" : "Refresh status") {
+                            Task {
+                                statusLoading = true
+                                await vpn.fetchChainStatus(chainID: chainID)
+                                statusLoading = false
+                            }
+                        }
+                        .disabled(hops.isEmpty || statusLoading)
+
+                        if statusReports.isEmpty && !statusLoading {
+                            Text("Tap Refresh to query each hop.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        ForEach(Array(statusReports.enumerated()), id: \.offset) { index, report in
+                            let hop = index < hops.count ? hops[index] : nil
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(hop?.displayName ?? report.host ?? "Hop")
+                                    .font(.headline)
+                                if let version = report.serverVersion {
+                                    Text("Server v\(version)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                ForEach(report.chains) { entry in
+                                    Text("\(entry.role ?? "?") · \(entry.running == true ? "running" : "stopped") · \(entry.sessions.count) session(s)")
+                                        .font(.caption2)
+                                    if let last = entry.lastActivity {
+                                        Text("Last activity: \(last)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     Section("Route (entry → exit)") {

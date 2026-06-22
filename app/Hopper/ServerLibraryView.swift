@@ -4,6 +4,7 @@ struct ServerLibraryView: View {
     @EnvironmentObject private var vpn: VPNController
     @State private var showScanner = false
     @State private var showImportJSON = false
+    @State private var showDeploy = false
 
     var body: some View {
         List {
@@ -11,7 +12,7 @@ struct ServerLibraryView: View {
                 ContentUnavailableView(
                     "No servers",
                     systemImage: "server.rack",
-                    description: Text("Scan a QR code or import JSON from deploy.sh shown in the browser.")
+                    description: Text("Deploy a server, scan a QR code, or import JSON.")
                 )
             } else {
                 ForEach(vpn.state.servers) { server in
@@ -32,6 +33,7 @@ struct ServerLibraryView: View {
         .navigationTitle("Servers")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                Button("Deploy") { showDeploy = true }
                 Button("Import JSON") { showImportJSON = true }
                 Button("Scan QR") { showScanner = true }
             }
@@ -46,6 +48,9 @@ struct ServerLibraryView: View {
                     vpn.errorMessage = error.localizedDescription
                 }
             }
+        }
+        .sheet(isPresented: $showDeploy) {
+            DeployServerView()
         }
         .sheet(isPresented: $showImportJSON) {
             HopImportJSONView { hop in

@@ -110,6 +110,24 @@ class SSHByteStream(
         return input.read(buffer, offset, length)
     }
 
+    fun readFully(length: Int): ByteArray {
+        if (length <= 0) return ByteArray(0)
+        val out = ByteArray(length)
+        var offset = 0
+        while (offset < length) {
+            val read = read(out, offset, length - offset)
+            if (read < 0) {
+                throw SSHByteStreamException("SSH tunnel stream closed before reading $length bytes")
+            }
+            if (read == 0) {
+                Thread.sleep(5)
+                continue
+            }
+            offset += read
+        }
+        return out
+    }
+
     fun write(data: ByteArray) {
         if (closed) throw SSHByteStreamException("SSH tunnel stream closed by the server — check ~/.hopper/hopper.log on the entry hop.")
         output.write(data)
@@ -132,23 +150,24 @@ data class SSHHopSession(
 object SSHHopConnector {
     fun connect(
         entry: HopNodeProfile,
+        hopperPort: Int,
         onProtect: ((Socket) -> Boolean)? = null,
     ): SSHHopSession {
         TunnelLog.info("SSH connect to ${entry.trimmedUser}@${entry.trimmedHost}:${entry.port}")
         val sshClient = HopSSH.connect(entry, onProtect)
         Thread.sleep(300)
 
-        val chainStream = openChainStream(sshClient)
+        val chainStream = openChainStream(sshClient, hopperPort)
         return SSHHopSession(sshClient, chainStream)
     }
 
-    private fun openChainStream(sshClient: SSHClient): SSHByteStream {
+    private fun openChainStream(sshClient: SSHClient, hopperPort: Int): SSHByteStream {
         var lastError: Throwable? = null
         repeat(6) { attempt ->
             if (attempt > 0) Thread.sleep(300)
-            TunnelLog.info("Opening hopper stream to 127.0.0.1:${HopConstants.HOPPER_PORT} (attempt ${attempt + 1})")
+            TunnelLog.info("Opening hopper stream to 127.0.0.1:$hopperPort (attempt ${attempt + 1})")
             try {
-                val connection = sshClient.newDirectConnection("127.0.0.1", HopConstants.HOPPER_PORT)
+                val connection = sshClient.newDirectConnection("127.0.0.1", hopperPort)
                 return SSHByteStream(connection)
             } catch (error: Throwable) {
                 lastError = error

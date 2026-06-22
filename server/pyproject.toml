@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hopper-server"
+version = "2.0.0"
+description = "Hopper server control CLI (hopperd provisioning, status, updates)"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+hopper = "hopper.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hopper*"]

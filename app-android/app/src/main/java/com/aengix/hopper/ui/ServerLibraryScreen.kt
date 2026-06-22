@@ -46,6 +46,7 @@ fun ServerLibraryScreen(
     val state by vpn.state.collectAsState()
     var showImport by remember { mutableStateOf(false) }
     var showScanner by remember { mutableStateOf(false) }
+    var showDeploy by remember { mutableStateOf(false) }
     var serverToDelete by remember { mutableStateOf<HopNodeProfile?>(null) }
 
     Scaffold(
@@ -58,6 +59,9 @@ fun ServerLibraryScreen(
                     }
                 },
                 actions = {
+                    TextButton(onClick = { showDeploy = true }) {
+                        Text("Deploy")
+                    }
                     TextButton(onClick = { showImport = true }) {
                         Text("Import")
                     }
@@ -78,7 +82,7 @@ fun ServerLibraryScreen(
                     .padding(16.dp),
             ) {
                 Text(
-                    "No servers — scan a QR code or import JSON from deploy.sh.",
+                    "No servers — deploy a server, scan a QR code, or import JSON.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -121,6 +125,14 @@ fun ServerLibraryScreen(
                     Text("Cancel")
                 }
             },
+        )
+    }
+
+    if (showDeploy) {
+        DeployServerDialog(
+            vpn = vpn,
+            onDismiss = { showDeploy = false },
+            onError = vpn::setError,
         )
     }
 

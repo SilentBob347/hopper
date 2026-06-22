@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	DefaultListenHost = "127.0.0.1"
-	DefaultListenPort = 7400
-	DefaultOverlay    = "10.64.0.0/24"
-	DefaultTUN        = "hopper0"
-	DefaultClientAddr = "10.64.0.2"
-	DefaultKeyPath    = "~/.hopper/id_ed25519"
+	DefaultListenHost       = "127.0.0.1"
+	DefaultListenPort       = 7400
+	DefaultOverlay          = "10.64.0.0/24"
+	DefaultTUN              = "hopper0"
+	DefaultKeyPath          = "~/.hopper/id_ed25519"
+	DefaultClientLeaseTTL   = 3600
+	DefaultClientPoolSuffix = ".2/24"
 )
 
 const (
@@ -24,10 +25,11 @@ const (
 )
 
 type NextHop struct {
-	Host    string `json:"host"`
-	Port    int    `json:"port"`
-	User    string `json:"user"`
-	KeyPath string `json:"key_path"`
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	User        string `json:"user"`
+	KeyPath     string `json:"key_path"`
+	TunnelPort  int    `json:"tunnel_port"`
 }
 
 type Route struct {
@@ -36,24 +38,27 @@ type Route struct {
 }
 
 type Config struct {
-	Addr       string   `json:"addr"`
-	ClientAddr string   `json:"client_addr"`
-	Overlay    string   `json:"overlay"`
-	TUN        string   `json:"tun"`
-	ListenHost string   `json:"listen_host"`
-	ListenPort int      `json:"listen_port"`
-	Next       *NextHop `json:"next"`
-	Routes     []Route  `json:"routes"`
-	NAT        bool     `json:"nat"`
+	ChainID            string   `json:"chain_id"`
+	Addr               string   `json:"addr"`
+	ClientPool         string   `json:"client_pool"`
+	ClientLeaseTTLSec  int      `json:"client_lease_ttl_sec"`
+	Overlay            string   `json:"overlay"`
+	TUN                string   `json:"tun"`
+	ListenHost         string   `json:"listen_host"`
+	ListenPort         int      `json:"listen_port"`
+	Next               *NextHop `json:"next"`
+	Routes             []Route  `json:"routes"`
+	NAT                bool     `json:"nat"`
+	ChainDir           string   `json:"-"`
 }
 
 func LoadConfig(path string) (Config, error) {
 	cfg := Config{
-		ClientAddr: DefaultClientAddr,
-		Overlay:    DefaultOverlay,
-		TUN:        DefaultTUN,
-		ListenHost: DefaultListenHost,
-		ListenPort: DefaultListenPort,
+		Overlay:           DefaultOverlay,
+		TUN:               DefaultTUN,
+		ListenHost:        DefaultListenHost,
+		ListenPort:        DefaultListenPort,
+		ClientLeaseTTLSec: DefaultClientLeaseTTL,
 	}
 
 	data, err := os.ReadFile(path)
@@ -68,6 +73,7 @@ func LoadConfig(path string) (Config, error) {
 		return cfg, fmt.Errorf("parse %s: %w", path, err)
 	}
 
+	cfg.ChainDir = filepath.Dir(path)
 	return cfg.withDefaults(), nil
 }
 
@@ -84,9 +90,15 @@ func (c Config) withDefaults() Config {
 	if c.ListenPort == 0 {
 		c.ListenPort = DefaultListenPort
 	}
+	if c.ClientLeaseTTLSec <= 0 {
+		c.ClientLeaseTTLSec = DefaultClientLeaseTTL
+	}
 	if c.Next != nil {
 		if c.Next.Port == 0 {
 			c.Next.Port = 22
+		}
+		if c.Next.TunnelPort == 0 {
+			c.Next.TunnelPort = DefaultListenPort
 		}
 		if c.Next.KeyPath == "" {
 			c.Next.KeyPath = DefaultKeyPath
@@ -110,14 +122,18 @@ func (c Config) Mode() string {
 	return "exit"
 }
 
+func (c Config) IsEntry() bool {
+	return c.ClientPool != ""
+}
+
 func (c Config) EffectiveRoutes() []Route {
 	if len(c.Routes) > 0 {
 		return c.Routes
 	}
 
 	routes := []Route{{Dest: c.Overlay, Via: ViaTun}}
-	if c.ClientAddr != "" {
-		routes = append(routes, Route{Dest: c.ClientAddr + "/32", Via: ViaIngress})
+	if c.ClientPool != "" {
+		routes = append(routes, Route{Dest: c.ClientPool, Via: ViaIngress})
 	}
 	if c.Addr != "" {
 		routes = append(routes, Route{Dest: c.Addr + "/32", Via: ViaTun})

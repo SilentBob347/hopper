@@ -85,7 +85,7 @@ enum HopErrorDetails {
         if error.code == 1 {
             return """
             SSH failed during tunnel setup (NIOSSH 1). \
-            Ensure start_server.sh is running (hopperd on port 7400). \
+            Ensure hopperd is running (hopperctl start). \
             Wait 5 seconds before reconnecting. (\(detail))
             """
         }
@@ -126,7 +126,7 @@ enum HopErrorDetails {
             return ns.localizedDescription
         }
 
-        return "Tunnel extension error (\(domain) code \(ns.code)). Rebuild the app and verify start_server.sh is running."
+        return "Tunnel extension error (\(domain) code \(ns.code)). Rebuild the app and verify hopperd is running."
     }
 
     private static func describeText(_ rendered: String, fallback: String) -> String {

@@ -3,9 +3,12 @@ package com.aengix.hopper.tunnel
 enum class IPTunnelFrameType(val raw: Byte) {
     DATA(1),
     KEEPALIVE(2),
+    ASSIGN_REQ(3),
+    ASSIGN_RESP(4),
     ;
 
     companion object {
+        const val WIRE_VERSION: Byte = 2
         fun fromRaw(value: Byte): IPTunnelFrameType? = entries.firstOrNull { it.raw == value }
     }
 }
@@ -19,7 +22,7 @@ data class IPTunnelFrame(
     fun encoded(): ByteArray {
         val body = payload
         val data = ByteArray(HEADER_LENGTH + body.size)
-        data[0] = 1
+        data[0] = IPTunnelFrameType.WIRE_VERSION
         data[1] = type.raw
         data.storeUInt16BE(body.size, 2)
         if (body.isNotEmpty()) {
@@ -34,7 +37,7 @@ data class IPTunnelFrame(
 
         fun decode(data: ByteArray): IPTunnelFrame {
             if (data.size < HEADER_LENGTH) throw IPTunnelProtocolException("truncated")
-            if (data[0] != 1.toByte()) throw IPTunnelProtocolException("badVersion")
+            if (data[0] != IPTunnelFrameType.WIRE_VERSION) throw IPTunnelProtocolException("badVersion")
 
             val type = IPTunnelFrameType.fromRaw(data[1])
                 ?: throw IPTunnelProtocolException("badType")
@@ -52,6 +55,17 @@ data class IPTunnelFrame(
                 IPTunnelFrameType.KEEPALIVE -> {
                     if (payloadLength != 0) throw IPTunnelProtocolException("truncated")
                     IPTunnelFrame(type)
+                }
+                IPTunnelFrameType.ASSIGN_REQ, IPTunnelFrameType.ASSIGN_RESP -> {
+                    if (data.size < HEADER_LENGTH + payloadLength) {
+                        throw IPTunnelProtocolException("truncated")
+                    }
+                    val payload = if (payloadLength > 0) {
+                        data.copyOfRange(HEADER_LENGTH, HEADER_LENGTH + payloadLength)
+                    } else {
+                        ByteArray(0)
+                    }
+                    IPTunnelFrame(type, payload)
                 }
             }
         }

@@ -1,16 +1,18 @@
 {
-  "addr": "10.64.0.10",
-  "client_addr": "10.64.0.2",
-  "overlay": "10.64.0.0/24",
+  "chain_id": "00000000-0000-0000-0000-000000000001",
+  "addr": "10.64.5.10",
+  "client_pool": "10.64.5.2/24",
+  "client_lease_ttl_sec": 3600,
+  "overlay": "10.64.5.0/24",
+  "tun": "hopper_a1b2c3d4",
+  "listen_host": "127.0.0.1",
+  "listen_port": 7405,
   "next": {
     "host": "hop2.example.com",
     "port": 22,
     "user": "hopper",
-    "key_path": "~/.hopper/id_ed25519"
+    "key_path": "~/.hopper/id_ed25519",
+    "tunnel_port": 7406
   },
-  "routes": [
-    { "dest": "10.64.0.2/32", "via": "ingress" },
-    { "dest": "10.64.0.0/24", "via": "tun" },
-    { "dest": "0.0.0.0/0", "via": "next" }
-  ]
+  "nat": false
 }

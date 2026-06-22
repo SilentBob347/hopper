@@ -7,22 +7,24 @@ import (
 )
 
 const (
-	Version       = 1
+	Version       = 2
 	MaxPacketLen  = 65535
 	HeaderLen     = 4
 	KeepaliveSecs = 25
 )
 
 const (
-	TypeData      byte = 1
-	TypeKeepalive byte = 2
+	TypeData       byte = 1
+	TypeKeepalive  byte = 2
+	TypeAssignReq  byte = 3
+	TypeAssignResp byte = 4
 )
 
 var (
-	ErrBadVersion   = errors.New("unsupported iptunnel version")
-	ErrBadType      = errors.New("unsupported iptunnel frame type")
-	ErrPacketLimit  = errors.New("packet exceeds limit")
-	ErrTruncated    = errors.New("truncated iptunnel frame")
+	ErrBadVersion  = errors.New("unsupported iptunnel version")
+	ErrBadType     = errors.New("unsupported iptunnel frame type")
+	ErrPacketLimit = errors.New("packet exceeds limit")
+	ErrTruncated   = errors.New("truncated iptunnel frame")
 )
 
 type Frame struct {
@@ -56,9 +58,13 @@ func ReadFrame(r io.Reader) (Frame, error) {
 			return Frame{}, err
 		}
 		frame.Payload = buf
-	case TypeKeepalive:
-		if payloadLen != 0 {
-			return Frame{}, ErrTruncated
+	case TypeKeepalive, TypeAssignReq, TypeAssignResp:
+		if payloadLen > 0 {
+			buf := make([]byte, payloadLen)
+			if _, err := io.ReadFull(r, buf); err != nil {
+				return Frame{}, err
+			}
+			frame.Payload = buf
 		}
 	default:
 		return Frame{}, ErrBadType
@@ -75,6 +81,10 @@ func WriteFrame(w io.Writer, frame Frame) error {
 		}
 	case TypeKeepalive:
 		frame.Payload = nil
+	case TypeAssignReq, TypeAssignResp:
+		if len(frame.Payload) > MaxPacketLen {
+			return ErrPacketLimit
+		}
 	default:
 		return ErrBadType
 	}

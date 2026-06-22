@@ -1,15 +1,24 @@
 import Foundation
 import NetworkExtension
 
+struct ServerUpdatePrompt: Identifiable, Equatable {
+    let id = UUID()
+    let hops: [HopNodeProfile]
+    let targetVersion: String
+}
+
 @MainActor
 final class VPNController: ObservableObject {
     @Published private(set) var state: AppState
     @Published private(set) var vpnStatus: NEVPNStatus = .invalid
     @Published private(set) var provisionStatus: String?
     @Published var errorMessage: String?
+    @Published var serverUpdatePrompt: ServerUpdatePrompt?
+    @Published private(set) var chainStatusReports: [UUID: [ChainStatusReport]] = [:]
 
     private var manager: NETunnelProviderManager?
     private var statusObserver: NSObjectProtocol?
+    private var pendingConnectRestart = false
 
     init() {
         state = ProfileStore.load()
@@ -23,6 +32,30 @@ final class VPNController: ObservableObject {
 
     func addServer(_ server: HopNodeProfile) {
         state.addServer(server)
+        persist()
+    }
+
+    func addDeployKey(_ key: DeploySSHKey) {
+        state.addDeployKey(key)
+        persist()
+    }
+
+    func deployServer(
+        host: String,
+        port: Int,
+        user: String,
+        auth: ServerDeployAuth
+    ) async throws {
+        let result = try await ServerDeployer.deploy(
+            host: host,
+            port: port,
+            user: user,
+            auth: auth
+        )
+        if let newKey = result.newDeployKey {
+            state.addDeployKey(newKey)
+        }
+        state.addServer(result.profile)
         persist()
     }
 
@@ -75,10 +108,29 @@ final class VPNController: ObservableObject {
         persist()
     }
 
+    // MARK: - Status
+
+    func fetchChainStatus(chainID: UUID) async {
+        guard let chain = state.chains.first(where: { $0.id == chainID }) else { return }
+        let hops = state.resolveHops(chain)
+        var reports: [ChainStatusReport] = []
+        await withTaskGroup(of: ChainStatusReport?.self) { group in
+            for hop in hops {
+                group.addTask {
+                    try? await ChainStatusService.fetch(on: hop, chainID: chainID)
+                }
+            }
+            for await report in group {
+                if let report { reports.append(report) }
+            }
+        }
+        chainStatusReports[chainID] = reports
+    }
+
     // MARK: - VPN
 
     func connect(restartHopperd: Bool = false) async {
-        guard let entry = state.entryHop else {
+        guard let chain = state.selectedChain, let entry = state.entryHop else {
             reportError("Select a chain with at least one server (entry → exit).")
             return
         }
@@ -88,23 +140,134 @@ final class VPNController: ObservableObject {
 
         let hops = state.activeHops
         do {
-            provisionStatus = "Provisioning chain (exit → entry)…"
-            _ = try await ChainProvisioner.provision(chain: hops, restartHopperd: restartHopperd) { [weak self] index, total, message in
-                Task { @MainActor in
-                    self?.provisionStatus = "[\(total - index)/\(total)] \(message)"
-                }
+            provisionStatus = "Checking server versions…"
+            let versionOutcome = try await preflightVersions(hops: hops)
+            switch versionOutcome {
+            case .appTooOld(let required):
+                provisionStatus = nil
+                reportError("App version \(HopVersion.appVersion) is too old. Update to \(required) or newer.")
+                return
+            case .serverTooOld(let outdated):
+                provisionStatus = nil
+                serverUpdatePrompt = ServerUpdatePrompt(
+                    hops: outdated,
+                    targetVersion: HopVersion.manifest.version
+                )
+                pendingConnectRestart = restartHopperd
+                return
+            case .compatible:
+                break
             }
-            provisionStatus = "Starting VPN…"
 
-            let manager = try await ensureManager(hop: entry)
-            self.manager = manager
-            observeStatus()
-            try manager.connection.startVPNTunnel(options: TunnelBootstrap.options(hop: entry))
-            provisionStatus = nil
+            try await performConnect(chain: chain, entry: entry, hops: hops, restartHopperd: restartHopperd)
         } catch {
             provisionStatus = nil
             reportError(HopErrorDetails.describe(error))
         }
+    }
+
+    func confirmServerUpdate() async {
+        guard let prompt = serverUpdatePrompt else { return }
+        serverUpdatePrompt = nil
+        errorMessage = nil
+        provisionStatus = "Updating servers…"
+        do {
+            for hop in prompt.hops {
+                try await VersionService.updateServer(on: hop, to: prompt.targetVersion)
+            }
+            guard let chain = state.selectedChain, let entry = state.entryHop else { return }
+            try await performConnect(
+                chain: chain,
+                entry: entry,
+                hops: state.activeHops,
+                restartHopperd: pendingConnectRestart
+            )
+        } catch {
+            provisionStatus = nil
+            reportError(HopErrorDetails.describe(error))
+        }
+    }
+
+    func cancelServerUpdate() {
+        serverUpdatePrompt = nil
+        pendingConnectRestart = false
+    }
+
+    private func performConnect(
+        chain: HopChain,
+        entry: HopNodeProfile,
+        hops: [HopNodeProfile],
+        restartHopperd: Bool
+    ) async throws {
+        provisionStatus = "Provisioning chain (exit → entry)…"
+        _ = try await ChainProvisioner.provision(
+            chainID: chain.id,
+            chain: hops,
+            restartHopperd: restartHopperd
+        ) { [weak self] index, total, message in
+            Task { @MainActor in
+                self?.provisionStatus = "[\(total - index)/\(total)] \(message)"
+            }
+        }
+        provisionStatus = "Starting VPN…"
+
+        let context = TunnelConnectContext(
+            chainID: chain.id,
+            hopperPort: ChainTopology.listenPort(chainID: chain.id),
+            overlayCIDR: ChainTopology.overlayCIDR(chainID: chain.id),
+            deviceID: ProfileStore.deviceID()
+        )
+
+        let manager = try await ensureManager(hop: entry, context: context)
+        self.manager = manager
+        observeStatus()
+        try manager.connection.startVPNTunnel(options: TunnelBootstrap.options(hop: entry, context: context))
+        provisionStatus = nil
+    }
+
+    private enum PreflightResult {
+        case compatible
+        case appTooOld(required: String)
+        case serverTooOld(hops: [HopNodeProfile])
+    }
+
+    private func preflightVersions(hops: [HopNodeProfile]) async throws -> PreflightResult {
+        var infos: [(hop: HopNodeProfile, info: ServerVersionInfo)] = []
+        try await withThrowingTaskGroup(of: (HopNodeProfile, ServerVersionInfo).self) { group in
+            for hop in hops {
+                group.addTask {
+                    let info = try await VersionService.fetchServerVersion(on: hop)
+                    return (hop, info)
+                }
+            }
+            for try await pair in group {
+                infos.append((hop: pair.0, info: pair.1))
+            }
+        }
+
+        for item in infos {
+            if let minApp = item.info.minAppVersion,
+               SemVer.compare(HopVersion.appVersion, minApp) == .orderedAscending {
+                return .appTooOld(required: minApp)
+            }
+        }
+
+        var outdated: [HopNodeProfile] = []
+        for item in infos {
+            guard let serverVersion = item.info.version else {
+                outdated.append(item.hop)
+                continue
+            }
+            if SemVer.compare(serverVersion, HopVersion.manifest.minServerVersion) == .orderedAscending {
+                continue
+            }
+            outdated.append(item.hop)
+        }
+
+        if !outdated.isEmpty {
+            return .serverTooOld(hops: outdated)
+        }
+        return .compatible
     }
 
     func disconnect() {
@@ -123,13 +286,13 @@ final class VPNController: ObservableObject {
         ProfileStore.save(state)
     }
 
-    private func ensureManager(hop: HopNodeProfile) async throws -> NETunnelProviderManager {
+    private func ensureManager(hop: HopNodeProfile, context: TunnelConnectContext) async throws -> NETunnelProviderManager {
         let managers = try await NETunnelProviderManager.loadAllFromPreferences()
         let manager = managers.first(where: Self.isHopperManager) ?? NETunnelProviderManager()
 
         manager.localizedDescription = HopConstants.appDisplayName
         manager.isEnabled = true
-        manager.protocolConfiguration = Self.makeProtocol(hop: hop)
+        manager.protocolConfiguration = Self.makeProtocol(hop: hop, context: context)
 
         try await manager.saveToPreferences()
         try await manager.loadFromPreferences()
@@ -199,11 +362,11 @@ final class VPNController: ObservableObject {
             .providerBundleIdentifier == HopConstants.tunnelBundleID
     }
 
-    private static func makeProtocol(hop: HopNodeProfile) -> NETunnelProviderProtocol {
+    private static func makeProtocol(hop: HopNodeProfile, context: TunnelConnectContext) -> NETunnelProviderProtocol {
         let proto = NETunnelProviderProtocol()
         proto.providerBundleIdentifier = HopConstants.tunnelBundleID
         proto.serverAddress = hop.trimmedHost
-        proto.providerConfiguration = TunnelBootstrap.options(hop: hop)
+        proto.providerConfiguration = TunnelBootstrap.options(hop: hop, context: context)
         return proto
     }
 }

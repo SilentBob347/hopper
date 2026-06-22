@@ -40,8 +40,9 @@ class HopperVpnService : VpnService() {
         when (intent?.action) {
             ACTION_CONNECT -> {
                 val hopJson = intent.getStringExtra(EXTRA_HOP_JSON)
-                if (hopJson.isNullOrBlank()) {
-                    failTunnel("Tunnel start options did not include the server profile.")
+                val contextJson = intent.getStringExtra(EXTRA_CONTEXT_JSON)
+                if (hopJson.isNullOrBlank() || contextJson.isNullOrBlank()) {
+                    failTunnel("Tunnel start options did not include hop or chain context.")
                     return START_NOT_STICKY
                 }
                 val hop = runCatching {
@@ -50,11 +51,17 @@ class HopperVpnService : VpnService() {
                     failTunnel(HopErrorDetails.describe(it))
                     return START_NOT_STICKY
                 }
+                val context = runCatching {
+                    Json.decodeFromString<com.aengix.hopper.model.TunnelConnectContext>(contextJson)
+                }.getOrElse {
+                    failTunnel(HopErrorDetails.describe(it))
+                    return START_NOT_STICKY
+                }
                 startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.vpn_notification_connecting)))
                 ProfileStore.clearLastTunnelError()
                 VpnStatusBus.update(VpnStatus.Connecting)
                 tunnelJob?.cancel()
-                tunnelJob = scope.launch { runTunnel(hop) }
+                tunnelJob = scope.launch { runTunnel(hop, context) }
             }
             ACTION_DISCONNECT -> {
                 stopTunnelInternal(userInitiated = true)
@@ -75,7 +82,7 @@ class HopperVpnService : VpnService() {
         super.onRevoke()
     }
 
-    private suspend fun runTunnel(hop: HopNodeProfile) {
+    private suspend fun runTunnel(hop: HopNodeProfile, context: com.aengix.hopper.model.TunnelConnectContext) {
         tunnelMutex.withLock {
             coordinator.onSessionFailure = { message ->
                 scope.launch {
@@ -85,9 +92,9 @@ class HopperVpnService : VpnService() {
             }
 
             try {
-                val tunInterface = coordinator.prepare(hop)
+                val prepared = coordinator.prepare(hop, context)
                 startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.vpn_notification_text)))
-                coordinator.startRelay(tunInterface)
+                coordinator.startRelay(prepared.tunInterface)
                 VpnStatusBus.update(VpnStatus.Connected)
             } catch (error: CancellationException) {
                 coordinator.stop()
@@ -149,6 +156,7 @@ class HopperVpnService : VpnService() {
         const val ACTION_CONNECT = "com.aengix.hopper.CONNECT"
         const val ACTION_DISCONNECT = "com.aengix.hopper.DISCONNECT"
         const val EXTRA_HOP_JSON = "hop_json"
+        const val EXTRA_CONTEXT_JSON = "context_json"
 
         private const val CHANNEL_ID = "hopper_vpn"
         private const val NOTIFICATION_ID = 1

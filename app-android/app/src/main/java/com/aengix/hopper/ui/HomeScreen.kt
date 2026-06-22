@@ -42,6 +42,7 @@ fun HomeScreen(
     val vpnStatus by vpn.vpnStatus.collectAsState()
     val provisionStatus by vpn.provisionStatus.collectAsState()
     val errorMessage by vpn.errorMessage.collectAsState()
+    val serverUpdatePrompt by vpn.serverUpdatePrompt.collectAsState()
     var showConnectOptions by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -168,6 +169,24 @@ fun HomeScreen(
                 }
             },
             confirmButton = {},
+        )
+    }
+
+    serverUpdatePrompt?.let { prompt ->
+        AlertDialog(
+            onDismissRequest = { vpn.cancelServerUpdate() },
+            title = { Text("Update servers?") },
+            text = {
+                Text("Server software is older than app v${prompt.targetVersion}. Update ${prompt.hops.size} hop(s) before connecting?")
+            },
+            confirmButton = {
+                TextButton(onClick = { vpn.confirmServerUpdate() }) {
+                    Text("Update")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { vpn.cancelServerUpdate() }) { Text("Cancel") }
+            },
         )
     }
 }

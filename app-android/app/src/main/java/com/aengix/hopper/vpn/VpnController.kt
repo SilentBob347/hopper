@@ -8,17 +8,28 @@ import androidx.lifecycle.viewModelScope
 import com.aengix.hopper.data.DemoProfiles
 import com.aengix.hopper.data.ProfileStore
 import com.aengix.hopper.model.AppState
+import com.aengix.hopper.model.ChainStatusReport
+import com.aengix.hopper.model.ChainTopology
 import com.aengix.hopper.model.HopNodeProfile
+import com.aengix.hopper.model.HopVersion
+import com.aengix.hopper.model.SemVer
+import com.aengix.hopper.model.ServerUpdatePrompt
+import com.aengix.hopper.model.TunnelConnectContext
 import com.aengix.hopper.provision.ChainProvisioner
+import com.aengix.hopper.provision.VersionService
 import com.aengix.hopper.util.HopErrorDetails
 import com.aengix.hopper.util.TunnelLog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 
 class VpnController(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(ProfileStore.load())
@@ -34,6 +45,14 @@ class VpnController(application: Application) : AndroidViewModel(application) {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _serverUpdatePrompt = MutableStateFlow<ServerUpdatePrompt?>(null)
+    val serverUpdatePrompt: StateFlow<ServerUpdatePrompt?> = _serverUpdatePrompt.asStateFlow()
+
+    private val _chainStatusReports = MutableStateFlow<Map<String, List<ChainStatusReport>>>(emptyMap())
+    val chainStatusReports: StateFlow<Map<String, List<ChainStatusReport>>> = _chainStatusReports.asStateFlow()
+
+    private var pendingConnectRestart = false
 
     private val statusListener: (VpnStatus, String?) -> Unit = { status, error ->
         _vpnStatus.value = status
@@ -53,6 +72,25 @@ class VpnController(application: Application) : AndroidViewModel(application) {
 
     fun addServer(server: HopNodeProfile) {
         updateState { it.addServer(server) }
+    }
+
+    fun deployServer(
+        host: String,
+        port: Int,
+        user: String,
+        auth: com.aengix.hopper.provision.ServerDeployAuth,
+    ) {
+        val result = com.aengix.hopper.provision.ServerDeployer.deploy(
+            host = host,
+            port = port,
+            user = user,
+            auth = auth,
+        )
+        updateState { state ->
+            var next = state
+            result.newDeployKey?.let { next = next.addDeployKey(it) }
+            next.addServer(result.profile)
+        }
     }
 
     fun deleteServers(ids: Set<String>) {
@@ -105,9 +143,30 @@ class VpnController(application: Application) : AndroidViewModel(application) {
         _errorMessage.value = message
     }
 
+    fun cancelServerUpdate() {
+        _serverUpdatePrompt.value = null
+        pendingConnectRestart = false
+    }
+
+    fun fetchChainStatus(chainId: String) {
+        val chain = _state.value.chains.firstOrNull { it.id == chainId } ?: return
+        val hops = _state.value.resolveHops(chain)
+        viewModelScope.launch {
+            val reports = withContext(Dispatchers.IO) {
+                hops.map { hop ->
+                    async {
+                        runCatching { VersionService.fetchChainStatus(hop, chainId) }.getOrNull()
+                    }
+                }.awaitAll().filterNotNull()
+            }
+            _chainStatusReports.update { it + (chainId to reports) }
+        }
+    }
+
     fun connect(restartHopperd: Boolean = false) {
+        val chain = _state.value.selectedChain
         val entry = _state.value.entryHop
-        if (entry == null) {
+        if (chain == null || entry == null) {
             reportError("Select a chain with at least one server (entry → exit).")
             return
         }
@@ -119,31 +178,27 @@ class VpnController(application: Application) : AndroidViewModel(application) {
         val hops = _state.value.activeHops
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    _provisionStatus.value = "Provisioning chain (exit → entry)…"
-                    ChainProvisioner.provision(chain = hops, restartHopperd = restartHopperd) { index, total, message ->
-                        _provisionStatus.value = "[${total - index}/$total] $message"
+                _provisionStatus.value = "Checking server versions…"
+                when (val outcome = withContext(Dispatchers.IO) { preflightVersions(hops) }) {
+                    is PreflightResult.AppTooOld -> {
+                        _provisionStatus.value = null
+                        reportError("App is too old. Update to ${outcome.required} or newer.")
+                        return@launch
                     }
+                    is PreflightResult.ServerTooOld -> {
+                        _provisionStatus.value = null
+                        _serverUpdatePrompt.value = ServerUpdatePrompt(
+                            hopNames = outcome.hops.map { it.displayName },
+                            hops = outcome.hops,
+                            targetVersion = HopVersion.manifest.version,
+                        )
+                        pendingConnectRestart = restartHopperd
+                        return@launch
+                    }
+                    PreflightResult.Compatible -> Unit
                 }
 
-                _provisionStatus.value = "Starting VPN…"
-                val context = getApplication<android.app.Application>()
-                val prepareIntent = VpnService.prepare(context)
-                if (prepareIntent != null) {
-                    PendingVpnConnect.pendingHopJson = TunnelBootstrap.hopJson(entry)
-                    _provisionStatus.value = null
-                    if (PendingVpnConnect.permissionGranted) {
-                        completePendingConnect()
-                    } else {
-                        TunnelLog.info("VPN permission required — requesting consent")
-                        onVpnPermissionRequired?.invoke(prepareIntent)
-                            ?: TunnelLog.error("VPN permission required but no handler registered")
-                    }
-                    return@launch
-                }
-
-                startVpnService(entry)
-                _provisionStatus.value = null
+                performConnect(chain.id, entry, hops, restartHopperd)
             } catch (error: Throwable) {
                 _provisionStatus.value = null
                 reportError(HopErrorDetails.describe(error))
@@ -151,17 +206,115 @@ class VpnController(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun confirmServerUpdate() {
+        val prompt = _serverUpdatePrompt.value ?: return
+        _serverUpdatePrompt.value = null
+        _errorMessage.value = null
+        _provisionStatus.value = "Updating servers…"
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    prompt.hops.forEach { hop ->
+                        VersionService.updateServer(hop, prompt.targetVersion)
+                    }
+                }
+                val chain = _state.value.selectedChain ?: return@launch
+                val entry = _state.value.entryHop ?: return@launch
+                performConnect(chain.id, entry, _state.value.activeHops, pendingConnectRestart)
+            } catch (error: Throwable) {
+                _provisionStatus.value = null
+                reportError(HopErrorDetails.describe(error))
+            }
+        }
+    }
+
+    private suspend fun performConnect(
+        chainId: String,
+        entry: HopNodeProfile,
+        hops: List<HopNodeProfile>,
+        restartHopperd: Boolean,
+    ) {
+        withContext(Dispatchers.IO) {
+            _provisionStatus.value = "Provisioning chain (exit → entry)…"
+            ChainProvisioner.provision(
+                chainId = chainId,
+                chain = hops,
+                restartHopperd = restartHopperd,
+            ) { index, total, message ->
+                _provisionStatus.value = "[${total - index}/$total] $message"
+            }
+        }
+
+        _provisionStatus.value = "Starting VPN…"
+        val context = getApplication<android.app.Application>()
+        val prepareIntent = VpnService.prepare(context)
+        val connectContext = TunnelConnectContext(
+            chainId = chainId,
+            hopperPort = ChainTopology.listenPort(chainId),
+            overlayCIDR = ChainTopology.overlayCIDR(chainId),
+            deviceId = ProfileStore.deviceId(),
+        )
+        PendingVpnConnect.pendingHopJson = TunnelBootstrap.hopJson(entry)
+        PendingVpnConnect.pendingContextJson = TunnelBootstrap.contextJson(connectContext)
+        if (prepareIntent != null) {
+            _provisionStatus.value = null
+            if (PendingVpnConnect.permissionGranted) {
+                completePendingConnect()
+            } else {
+                onVpnPermissionRequired?.invoke(prepareIntent)
+                    ?: TunnelLog.error("VPN permission required but no handler registered")
+            }
+            return
+        }
+
+        startVpnService(entry, connectContext)
+        _provisionStatus.value = null
+    }
+
+    private sealed interface PreflightResult {
+        data object Compatible : PreflightResult
+        data class AppTooOld(val required: String) : PreflightResult
+        data class ServerTooOld(val hops: List<HopNodeProfile>) : PreflightResult
+    }
+
+    private fun preflightVersions(hops: List<HopNodeProfile>): PreflightResult {
+        val appVersion = com.aengix.hopper.model.HopConstants.appVersion(getApplication())
+        val manifest = HopVersion.manifest
+        val infos = hops.map { hop ->
+            hop to VersionService.fetchServerVersion(hop)
+        }
+
+        for ((_, info) in infos) {
+            info.min_app_version?.let { minApp ->
+                if (SemVer.compare(appVersion, minApp) < 0) {
+                    return PreflightResult.AppTooOld(minApp)
+                }
+            }
+        }
+
+        val outdated = infos.mapNotNull { (hop, info) ->
+            val serverVersion = info.version ?: return@mapNotNull hop
+            if (SemVer.compare(serverVersion, manifest.min_server_version) >= 0) null else hop
+        }
+
+        if (outdated.isNotEmpty()) {
+            return PreflightResult.ServerTooOld(outdated)
+        }
+        return PreflightResult.Compatible
+    }
+
     fun onVpnPermissionGranted() {
         PendingVpnConnect.permissionGranted = true
-        TunnelLog.info("VPN permission granted")
         completePendingConnect()
     }
 
     private fun completePendingConnect() {
         val hopJson = PendingVpnConnect.pendingHopJson ?: return
+        val contextJson = PendingVpnConnect.pendingContextJson ?: return
         PendingVpnConnect.clear()
-        val hop = kotlinx.serialization.json.Json.decodeFromString(HopNodeProfile.serializer(), hopJson)
-        startVpnService(hop)
+        val hop = Json.decodeFromString(HopNodeProfile.serializer(), hopJson)
+        val context = Json.decodeFromString<TunnelConnectContext>(contextJson)
+        startVpnService(hop, context)
     }
 
     fun disconnect() {
@@ -178,12 +331,13 @@ class VpnController(application: Application) : AndroidViewModel(application) {
         ProfileStore.loadLastTunnelError()?.let { reportError(it) }
     }
 
-    private fun startVpnService(entry: HopNodeProfile) {
-        val context = getApplication<android.app.Application>()
-        context.startForegroundService(
-            Intent(context, HopperVpnService::class.java).apply {
+    private fun startVpnService(entry: HopNodeProfile, context: TunnelConnectContext) {
+        val appContext = getApplication<android.app.Application>()
+        appContext.startForegroundService(
+            Intent(appContext, HopperVpnService::class.java).apply {
                 action = HopperVpnService.ACTION_CONNECT
                 putExtra(HopperVpnService.EXTRA_HOP_JSON, TunnelBootstrap.hopJson(entry))
+                putExtra(HopperVpnService.EXTRA_CONTEXT_JSON, TunnelBootstrap.contextJson(context))
             },
         )
     }
@@ -210,10 +364,12 @@ class VpnController(application: Application) : AndroidViewModel(application) {
 
 object PendingVpnConnect {
     var pendingHopJson: String? = null
+    var pendingContextJson: String? = null
     @Volatile var permissionGranted: Boolean = false
 
     fun clear() {
         pendingHopJson = null
+        pendingContextJson = null
         permissionGranted = false
     }
 }

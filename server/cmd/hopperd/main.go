@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -13,8 +14,11 @@ import (
 	"github.com/aengix/hopper/server/internal/log"
 )
 
+var version = "2.0.0"
+
 func main() {
 	checkOnly := flag.Bool("check", false, "verify binary runs and exit")
+	versionFlag := flag.Bool("version", false, "print version JSON and exit")
 	configPath := flag.String("config", "", "hopper.json path")
 	readyFile := flag.String("ready-file", "", "write READY line to this path")
 	verbose := flag.Bool("verbose", false, "verbose debug logging to stderr")
@@ -24,6 +28,12 @@ func main() {
 
 	if *checkOnly {
 		fmt.Fprintln(os.Stdout, "OK")
+		return
+	}
+
+	if *versionFlag {
+		out, _ := json.Marshal(map[string]string{"version": version})
+		fmt.Println(string(out))
 		return
 	}
 
@@ -42,9 +52,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Infof("hopperd starting pid=%d mode=%s config=%q", os.Getpid(), cfg.Mode(), *configPath)
+	log.Infof("hopperd starting pid=%d mode=%s version=%s config=%q", os.Getpid(), cfg.Mode(), version, *configPath)
 
-	srv := hopper.NewServer(cfg)
+	srv, err := hopper.NewServer(cfg)
+	if err != nil {
+		log.Errorf("server init: %v", err)
+		os.Exit(1)
+	}
 	if err := srv.Prepare(); err != nil {
 		log.Errorf("prepare: %v", err)
 		os.Exit(1)

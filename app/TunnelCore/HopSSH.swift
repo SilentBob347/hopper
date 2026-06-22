@@ -16,7 +16,8 @@ enum HopSSHError: LocalizedError {
 }
 
 enum HopSSH {
-    private static let eventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+    static let sharedEventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+    private static let eventLoop = sharedEventLoop
 
     static func settings(for node: HopNodeProfile) throws -> SSHClientSettings {
         let privateKey: Curve25519.Signing.PrivateKey

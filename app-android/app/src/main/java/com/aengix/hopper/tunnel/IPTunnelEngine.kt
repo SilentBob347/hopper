@@ -92,7 +92,7 @@ class IPTunnelEngine(
                 return
             }
 
-            if (cursor[0] != 1.toByte()) {
+            if (cursor[0] != IPTunnelFrameType.WIRE_VERSION) {
                 fail("Invalid iptunnel frame: badVersion (head=${hexPreview(cursor)})")
                 return
             }
@@ -124,7 +124,10 @@ class IPTunnelEngine(
                         tunOutput.write(frame.payload)
                         tunOutput.flush()
                     }
-                    IPTunnelFrameType.KEEPALIVE -> Unit
+                    IPTunnelFrameType.KEEPALIVE,
+                    IPTunnelFrameType.ASSIGN_REQ,
+                    IPTunnelFrameType.ASSIGN_RESP,
+                    -> Unit
                 }
             } catch (error: Exception) {
                 fail("Invalid iptunnel frame: ${error.message} (head=${hexPreview(frameData)})")
