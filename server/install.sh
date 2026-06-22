@@ -195,15 +195,25 @@ elif [[ ! -f "${HOPPER_DIR}/pyproject.toml" ]]; then
   die "No server tree at ${HOPPER_DIR} — run without --skip-sync first"
 fi
 
+clean_legacy_editable() {
+  local sp="${HOPPER_DIR}/.venv/lib"
+  [[ -d "$sp" ]] || return 0
+  find "$sp" -path '*/site-packages/hopper_server*.dist-info' -exec rm -rf {} + 2>/dev/null || true
+  find "$sp" -path '*/site-packages/hopper-server*.dist-info' -exec rm -rf {} + 2>/dev/null || true
+  find "$sp" -path '*/site-packages/__editable__*hopper*' -delete 2>/dev/null || true
+  find "$sp" -path '*/site-packages/hopper_server*.pth' -delete 2>/dev/null || true
+}
+
 ensure_venv() {
   if [[ ! -x "${HOPPER_DIR}/.venv/bin/python" ]]; then
     log "Creating Python venv..."
     python3 -m venv "${HOPPER_DIR}/.venv"
-  fi
-  "${HOPPER_DIR}/.venv/bin/pip" install --upgrade pip
-  "${HOPPER_DIR}/.venv/bin/pip" uninstall -y hopper-server 2>/dev/null || true
-  if [[ -f "${HOPPER_DIR}/requirements.txt" ]]; then
-    "${HOPPER_DIR}/.venv/bin/pip" install -r "${HOPPER_DIR}/requirements.txt"
+    "${HOPPER_DIR}/.venv/bin/pip" install --upgrade pip
+    if [[ -f "${HOPPER_DIR}/requirements.txt" ]]; then
+      "${HOPPER_DIR}/.venv/bin/pip" install -r "${HOPPER_DIR}/requirements.txt"
+    fi
+  else
+    clean_legacy_editable
   fi
   PYTHONPATH="${HOPPER_DIR}" "${HOPPER_DIR}/.venv/bin/python" -c "import hopper.cli" \
     || die "hopper CLI not importable from ${HOPPER_DIR}"

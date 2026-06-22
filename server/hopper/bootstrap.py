@@ -94,6 +94,24 @@ def _python_env() -> dict[str, str]:
     return env
 
 
+def _remove_legacy_editable_install(vdir: Path) -> None:
+    """Drop old pip -e hopper-server metadata; hopper runs from HOPPER_DIR via PYTHONPATH."""
+    lib = vdir / "lib"
+    if not lib.is_dir():
+        return
+    for pattern in (
+        "python*/site-packages/hopper_server*.dist-info",
+        "python*/site-packages/hopper-server*.dist-info",
+        "python*/site-packages/__editable__*hopper*",
+        "python*/site-packages/hopper_server*.pth",
+    ):
+        for path in lib.glob(pattern):
+            if path.is_dir():
+                shutil.rmtree(path, ignore_errors=True)
+            else:
+                path.unlink(missing_ok=True)
+
+
 def _venv_python_ready(vdir: Path) -> bool:
     vpy = vdir / "bin" / "python"
     if not vpy.is_file():
@@ -117,18 +135,23 @@ def ensure_venv_packages() -> Path:
     if not python:
         die("python3 required")
     vdir = venv_dir()
-    if not _venv_python_ready(vdir):
-        if vdir.is_dir():
-            log(f"Removing incomplete venv at {vdir}")
-            shutil.rmtree(vdir)
-        log(f"Creating venv at {vdir}")
-        venv.create(vdir, with_pip=True)
+    vpy = vdir / "bin" / "python"
+    if vpy.is_file():
+        _remove_legacy_editable_install(vdir)
+    if _venv_python_ready(vdir):
+        return vpy
+    if vdir.is_dir():
+        log(f"Removing incomplete venv at {vdir}")
+        shutil.rmtree(vdir)
+    log(f"Creating venv at {vdir}")
+    venv.create(vdir, with_pip=True)
     vpy = vdir / "bin" / "python"
     subprocess.run([str(vpy), "-m", "pip", "install", "--upgrade", "pip"], check=True)
-    subprocess.run([str(vpy), "-m", "pip", "uninstall", "-y", "hopper-server"], capture_output=True)
     req = hopper_dir() / "requirements.txt"
     if req.is_file():
         subprocess.run([str(vpy), "-m", "pip", "install", "-r", str(req)], check=True)
+    if not _venv_python_ready(vdir):
+        die("hopper CLI not importable after venv setup")
     return vpy
 
 
