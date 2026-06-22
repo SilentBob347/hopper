@@ -295,7 +295,7 @@ class VpnController(application: Application) : AndroidViewModel(application) {
         }
 
         val outdated = infos.mapNotNull { (hop, info) ->
-            val serverVersion = info.version ?: return@mapNotNull hop
+            val serverVersion = info.version ?: return@mapNotNull null
             if (SemVer.compare(serverVersion, manifest.min_server_version) >= 0) null else hop
         }
 

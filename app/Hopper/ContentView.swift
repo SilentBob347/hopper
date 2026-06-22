@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var vpn: VPNController
     @State private var showConnectOptions = false
+    @State private var showServerUpdateAlert = false
 
     var body: some View {
         NavigationStack {
@@ -107,22 +108,27 @@ struct ContentView: View {
             }
             .navigationTitle("\(HopConstants.appDisplayName) \(HopConstants.appVersion)")
             .navigationBarTitleDisplayMode(.inline)
-            .alert(
-                "Update servers?",
-                isPresented: Binding(
-                    get: { vpn.serverUpdatePrompt != nil },
-                    set: { if !$0 { vpn.cancelServerUpdate() } }
-                ),
-                presenting: vpn.serverUpdatePrompt
-            ) { prompt in
-                Button("Update \(prompt.hops.count) hop(s)") {
-                    Task { await vpn.confirmServerUpdate() }
+            .onChange(of: vpn.serverUpdatePrompt != nil) { _, shouldShow in
+                showServerUpdateAlert = shouldShow
+            }
+            .onChange(of: showServerUpdateAlert) { _, isShowing in
+                if !isShowing, vpn.serverUpdatePrompt != nil {
+                    Task { @MainActor in
+                        vpn.cancelServerUpdate()
+                    }
                 }
-                Button("Cancel", role: .cancel) {
-                    vpn.cancelServerUpdate()
+            }
+            .alert("Update servers?", isPresented: $showServerUpdateAlert) {
+                if let prompt = vpn.serverUpdatePrompt {
+                    Button("Update \(prompt.hops.count) hop(s)") {
+                        Task { await vpn.confirmServerUpdate() }
+                    }
+                    Button("Cancel", role: .cancel) {}
                 }
-            } message: { prompt in
-                Text("Server software is older than app v\(prompt.targetVersion). Update before connecting?")
+            } message: {
+                if let prompt = vpn.serverUpdatePrompt {
+                    Text("Server software is older than app v\(prompt.targetVersion). Update before connecting?")
+                }
             }
         }
     }

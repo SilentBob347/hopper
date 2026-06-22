@@ -10,6 +10,10 @@ struct HopNodeProfile: Codable, Equatable, Identifiable, Hashable {
     var hostKeys: [String] = []
     /// Server bundle path from QR v2 (`install_dir`), e.g. `~/hopper`.
     var installDir: String = ""
+    /// Hopper server bundle version from deploy/QR v2 (`server_version`).
+    var serverVersion: String = ""
+    /// Minimum app version required by the server (`min_app_version`).
+    var minAppVersion: String = ""
 
     var trimmedName: String {
         name.trimmingCharacters(in: .whitespacesAndNewlines)

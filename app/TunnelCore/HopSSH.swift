@@ -56,7 +56,7 @@ enum HopSSH {
         if let onLine {
             return try await runCommandStreaming(on: client, command, onLine: onLine)
         }
-        let buffer = try await client.executeCommand(command, mergeStreams: false)
+        let buffer = try await client.executeCommand(command, mergeStreams: true)
         return String(buffer: buffer)
     }
 

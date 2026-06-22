@@ -14,7 +14,9 @@ object VersionService {
         val output = HopSSH.withSession(hop) { client ->
             HopSSH.runCommand(client, cmd)
         }
-        return json.decodeFromString<ServerVersionInfo>(output.trim())
+        val jsonLine = extractJsonLine(output)
+            ?: throw IllegalStateException("Server returned invalid version JSON. Output: ${output.takeLast(200)}")
+        return json.decodeFromString<ServerVersionInfo>(jsonLine)
     }
 
     fun updateServer(hop: HopNodeProfile, version: String) {
@@ -36,6 +38,14 @@ object VersionService {
 
     private fun shellQuote(value: String): String =
         "'" + value.replace("'", "'\\''") + "'"
+
+    private fun extractJsonLine(output: String): String? =
+        output.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toList()
+            .asReversed()
+            .firstOrNull { it.startsWith("{") }
 }
 
 private val HopNodeProfile.resolvedInstallDir: String

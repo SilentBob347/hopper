@@ -13,6 +13,8 @@ data class HopNodeProfile(
     val privateKey: String = "",
     val hostKeys: List<String> = emptyList(),
     val installDir: String = "",
+    val serverVersion: String = "",
+    val minAppVersion: String = "",
 ) {
     val trimmedName: String get() = name.trim()
     val trimmedHost: String get() = host.trim()

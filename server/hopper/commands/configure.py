@@ -9,6 +9,7 @@ import sys
 from ..daemon import maybe_setcap, resolve_binary
 from ..keys import ensure_keypair, fetch_public_ip, install_authorized_key, read_host_key
 from ..logutil import die, log
+from ..node_profile import build_node_profile
 from ..paths import hopper_dir, KEY_PATH
 from ..version import load_version, version_field
 
@@ -64,19 +65,17 @@ def run_configure(args: list[str]) -> int:
 
     name = socket.getfqdn() or socket.gethostname()
     host_key = read_host_key(host, port)
-    payload = {
-        "v": 2,
-        "name": name,
-        "host": host,
-        "port": str(port),
-        "user": user,
-        "private_key": KEY_PATH.read_text(),
-        "install_dir": str(hopper_dir()),
-        "server_version": version_field("version", "unknown"),
-        "min_app_version": version_field("min_app_version", "unknown"),
-    }
-    if host_key.strip():
-        payload["host_key"] = [host_key.strip()]
+    payload = build_node_profile(
+        name=name,
+        host=host,
+        port=port,
+        user=user,
+        private_key=KEY_PATH.read_text(),
+        install_dir=str(hopper_dir()),
+        server_version=version_field("version", "unknown"),
+        min_app_version=version_field("min_app_version", "unknown"),
+        host_key=host_key,
+    )
 
     text = json.dumps(payload, separators=(",", ":"))
     if json_only:

@@ -84,8 +84,8 @@ enum VersionChecker {
         }
 
         let outdated = serverInfos.compactMap { item -> String? in
-            guard let serverVersion = item.info.version else { return item.hop }
-            if SemVer.compare(serverVersion, manifest.minServerVersion) != .orderedAscending {
+            guard let serverVersion = item.info.version else { return nil }
+            if SemVer.compare(serverVersion, manifest.minServerVersion) == .orderedAscending {
                 return item.hop
             }
             return nil
@@ -105,7 +105,9 @@ enum VersionService {
         let output = try await HopSSH.withSession(on: hop) { client in
             try await HopSSH.runCommand(on: client, cmd)
         }
-        guard let data = output.data(using: .utf8) else {
+        guard let jsonLine = extractJSONLine(from: output),
+              let data = jsonLine.data(using: .utf8)
+        else {
             throw VersionServiceError.invalidResponse
         }
         return try JSONDecoder().decode(ServerVersionInfo.self, from: data)
@@ -121,6 +123,16 @@ enum VersionService {
 
     private static func shellQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    private static func extractJSONLine(from output: String) -> String? {
+        for line in output.split(separator: "\n", omittingEmptySubsequences: false).reversed() {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("{") {
+                return trimmed
+            }
+        }
+        return nil
     }
 }
 

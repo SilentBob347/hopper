@@ -66,6 +66,11 @@ final class VPNController: ObservableObject {
         persist()
     }
 
+    func deleteServer(id: UUID) {
+        guard let index = state.servers.firstIndex(where: { $0.id == id }) else { return }
+        deleteServers(at: IndexSet(integer: index))
+    }
+
     func renameServer(id: UUID, name: String) {
         state.renameServer(id: id, name: name)
         persist()
@@ -257,13 +262,11 @@ final class VPNController: ObservableObject {
         var outdated: [HopNodeProfile] = []
         for item in infos {
             guard let serverVersion = item.info.version else {
-                outdated.append(item.hop)
                 continue
             }
             if SemVer.compare(serverVersion, HopVersion.manifest.minServerVersion) == .orderedAscending {
-                continue
+                outdated.append(item.hop)
             }
-            outdated.append(item.hop)
         }
 
         if !outdated.isEmpty {

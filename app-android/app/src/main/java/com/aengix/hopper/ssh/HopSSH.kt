@@ -68,58 +68,57 @@ object HopSSH {
         command: String,
         onLine: ((String) -> Unit)?,
     ): String {
-        if (onLine == null) {
-            sshClient.startSession().use { session ->
-                session.exec(command).use { commandSession ->
-                    val output = commandSession.inputStream.bufferedReader().readText()
-                    val exitStatus = commandSession.exitStatus
-                    if (exitStatus != null && exitStatus != 0) {
-                        val stderr = commandSession.errorStream.bufferedReader().readText()
-                        TunnelLog.error("Command failed ($exitStatus): $stderr")
-                    }
-                    return output
-                }
-            }
-        }
-        return runCommandStreaming(sshClient, command, onLine)
-    }
-
-    private fun runCommandStreaming(
-        sshClient: SSHClient,
-        command: String,
-        onLine: (String) -> Unit,
-    ): String {
         sshClient.startSession().use { session ->
-            session.exec(command).use { commandSession ->
+            session.exec(command).use { cmd ->
                 val stdout = StringBuilder()
                 val stderr = StringBuilder()
                 val outThread = Thread {
-                    commandSession.inputStream.bufferedReader().forEachLine { line ->
-                        stdout.appendLine(line)
-                        onLine(line)
+                    cmd.inputStream.bufferedReader().use { reader ->
+                        reader.forEachLine { line ->
+                            stdout.appendLine(line)
+                            onLine?.invoke(line)
+                        }
                     }
                 }
                 val errThread = Thread {
-                    commandSession.errorStream.bufferedReader().forEachLine { line ->
-                        stderr.appendLine(line)
-                        onLine(line)
+                    cmd.errorStream.bufferedReader().use { reader ->
+                        reader.forEachLine { line ->
+                            stderr.appendLine(line)
+                            onLine?.invoke(line)
+                        }
                     }
                 }
                 outThread.start()
                 errThread.start()
                 outThread.join()
                 errThread.join()
-                val exitStatus = commandSession.exitStatus
+                runCatching { cmd.join() }
+                val exitStatus = cmd.exitStatus
+                val combined = combineRemoteOutput(stdout, stderr)
                 if (exitStatus != null && exitStatus != 0) {
-                    val detail = stderr.toString().trim()
                     throw HopSSHException(
-                        if (detail.isEmpty()) "Command failed ($exitStatus)" else "Command failed ($exitStatus): $detail",
+                        if (combined.isEmpty()) {
+                            "Command failed ($exitStatus)"
+                        } else {
+                            "Command failed ($exitStatus): ${combined.takeLast(500)}"
+                        },
                     )
                 }
-                return stdout.toString()
+                return combined
             }
         }
     }
+
+    private fun combineRemoteOutput(stdout: StringBuilder, stderr: StringBuilder): String =
+        buildString {
+            val out = stdout.toString().trimEnd()
+            val err = stderr.toString().trimEnd()
+            if (out.isNotEmpty()) append(out)
+            if (err.isNotEmpty()) {
+                if (isNotEmpty()) append('\n')
+                append(err)
+            }
+        }
 
     fun <T> withSession(
         node: HopNodeProfile,

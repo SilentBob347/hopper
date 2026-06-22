@@ -1,17 +1,24 @@
 package com.aengix.hopper.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -34,6 +41,7 @@ fun ServerDetailScreen(
     val server = state.server(serverId)
     var name by remember(server?.name) { mutableStateOf(server?.name.orEmpty()) }
     var showExport by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     if (showExport && server != null) {
         ServerExportScreen(
@@ -41,6 +49,30 @@ fun ServerDetailScreen(
             onBack = { showExport = false },
         )
         return
+    }
+
+    if (showDeleteConfirm && server != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete server?") },
+            text = {
+                Text("Remove ${server.displayName} from the library. Chains that use this server will drop it.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vpn.deleteServers(setOf(serverId))
+                    showDeleteConfirm = false
+                    onBack()
+                }) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 
     Scaffold(
@@ -76,11 +108,23 @@ fun ServerDetailScreen(
             if (server.installDir.trim().isNotEmpty()) {
                 Text("Install path: ${server.installDir}")
             }
-            Button(
-                onClick = { showExport = true },
-                modifier = Modifier.padding(top = 24.dp),
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Export…")
+                Button(onClick = { showExport = true }) {
+                    Text("Export…")
+                }
+                OutlinedButton(
+                    onClick = { showDeleteConfirm = true },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Text("Delete")
+                }
             }
         }
     }

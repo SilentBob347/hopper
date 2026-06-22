@@ -51,7 +51,7 @@ final class SSHByteStream: @unchecked Sendable {
     }
 
     private func installReader() async throws {
-        final class Reader: ChannelInboundHandler {
+        final class Reader: ChannelInboundHandler, @unchecked Sendable {
             typealias InboundIn = ByteBuffer
             let owner: SSHByteStream
 

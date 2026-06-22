@@ -1,11 +1,13 @@
 import SwiftUI
 
 struct ServerDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var vpn: VPNController
     let serverID: UUID
 
     @State private var name: String = ""
     @State private var showExport = false
+    @State private var showDeleteConfirm = false
 
     private var server: HopNodeProfile? {
         vpn.state.server(id: serverID)
@@ -32,7 +34,11 @@ struct ServerDetailView: View {
                     }
 
                     Section("Share") {
-                        Button("Export…") { showExport = true }
+                        HStack {
+                            Button("Export…") { showExport = true }
+                            Spacer()
+                            Button("Delete", role: .destructive) { showDeleteConfirm = true }
+                        }
                     }
                 }
             } else {
@@ -47,6 +53,17 @@ struct ServerDetailView: View {
         .sheet(isPresented: $showExport) {
             if let server {
                 ServerExportView(server: server)
+            }
+        }
+        .alert("Delete server?", isPresented: $showDeleteConfirm) {
+            Button("Delete", role: .destructive) {
+                vpn.deleteServer(id: serverID)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if let server {
+                Text("Remove \(server.displayName) from the library. Chains that use this server will drop it.")
             }
         }
     }
