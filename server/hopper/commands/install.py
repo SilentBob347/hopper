@@ -46,16 +46,27 @@ def run_install(args: list[str]) -> int:
 
     ensure_git()
     hopper_dir().mkdir(parents=True, exist_ok=True)
+    log(
+        f"install start: dir={hopper_dir()} ref={ref or '(none)'} "
+        f"skip_binary={skip_binary} configure={configure}"
+    )
 
+    synced = False
     if ref:
+        log(f"git sync: ref={ref}")
         src = sync_from_git(ref=ref)
+        log(f"git sync: copying from {src}")
         copy_tree_into_install(src)
+        synced = True
+        log("git sync: server tree updated")
 
-    ensure_venv_packages()
+    ensure_venv_packages(force_reinstall=synced)
     stop_all_legacy_cleanup()
 
     if not skip_binary:
+        log("install: refreshing hopperd binary from GitHub release")
         if not refresh_binary_from_release():
+            log("install: release download failed — checking dist/ or local build")
             try:
                 resolve_binary()
             except SystemExit:
@@ -63,6 +74,12 @@ def run_install(args: list[str]) -> int:
                     "WARN: hopperd binary not available — check deploy log above for download errors "
                     "(GitHub release hopperd-linux-amd64 / hopperd-linux-arm64)"
                 )
+    else:
+        log("install: --skip-binary — using dist/ hopperd only")
+        try:
+            resolve_binary()
+        except SystemExit:
+            log("WARN: --skip-binary set but no valid hopperd in dist/")
 
     try:
         maybe_setcap()

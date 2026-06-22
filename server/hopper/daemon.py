@@ -27,12 +27,42 @@ def hopper_binary_path() -> Path:
     return bin_dir() / f"{DAEMON_NAME}-linux-{detect_arch()}"
 
 
+def _binary_passes_check(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    check = subprocess.run([str(path), "-check"], capture_output=True)
+    return check.returncode == 0
+
+
+def purge_stale_binaries() -> None:
+    """Remove wrong-arch or invalid hopperd binaries from dist/."""
+    ensure_dirs()
+    arch = detect_arch()
+    expected = hopper_binary_path()
+    for path in bin_dir().glob(f"{DAEMON_NAME}-linux-*"):
+        if path == expected:
+            if path.is_file() and not _binary_passes_check(path):
+                log(f"Removing invalid {path.name} (failed hopperd -check)")
+                path.unlink(missing_ok=True)
+            continue
+        if path.is_file():
+            log(f"Removing wrong-arch binary {path.name} (host is linux-{arch})")
+            path.unlink(missing_ok=True)
+
+
 def resolve_binary() -> Path:
     ensure_dirs()
+    purge_stale_binaries()
     dest = hopper_binary_path()
+    if dest.is_file() and _binary_passes_check(dest):
+        log(f"Using bundled {DAEMON_NAME} at {dest} ({dest.stat().st_size} bytes)")
+    elif dest.is_file():
+        log(f"Existing {dest.name} failed hopperd -check — removing")
+        dest.unlink(missing_ok=True)
     if dest.is_file():
-        log(f"Using bundled {DAEMON_NAME} at {dest}")
-    elif shutil.which("go") and (Path(__file__).resolve().parent.parent / "cmd" / "hopperd" / "main.go").is_file():
+        dest.chmod(0o755)
+        return dest
+    if shutil.which("go") and (Path(__file__).resolve().parent.parent / "cmd" / "hopperd" / "main.go").is_file():
         log(f"Building {DAEMON_NAME} into {dest}...")
         ver = version_field("version", "dev")
         server_root = Path(__file__).resolve().parent.parent
@@ -49,15 +79,15 @@ def resolve_binary() -> Path:
         )
     else:
         die(f"Missing {dest}. Run hopper update or install from deploy.")
+    if not _binary_passes_check(dest):
+        die(f"{dest} failed hopperd -check")
     dest.chmod(0o755)
-    check = subprocess.run([str(dest), "-check"], capture_output=True)
-    if check.returncode != 0:
-        die(f"{dest} failed -check")
     return dest
 
 
 def refresh_binary_from_release() -> bool:
     load_version.cache_clear()
+    purge_stale_binaries()
     dest = hopper_binary_path()
     arch = detect_arch()
     urls = release_asset_urls(arch)
@@ -65,9 +95,10 @@ def refresh_binary_from_release() -> bool:
         log("ERROR: no hopperd release URLs configured (check VERSION.json git_remote)")
         return False
 
+    log(f"hopperd download: arch=linux-{arch} dest={dest} urls={len(urls)}")
     last_err = ""
-    for url in urls:
-        log(f"Downloading {url}...")
+    for i, url in enumerate(urls, start=1):
+        log(f"Downloading [{i}/{len(urls)}] {url}...")
         err = _download_release_asset(url, dest)
         if err is None:
             log(f"Installed {dest.name} ({dest.stat().st_size} bytes)")

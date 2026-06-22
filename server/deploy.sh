@@ -193,14 +193,14 @@ for line in reversed(sys.stdin.read().splitlines()):
 '
 }
 
-log "Running remote install..."
+log "Running remote install (local=${USE_LOCAL}, skip_binary=${USE_LOCAL_BINARIES})..."
 install_out="$(mktemp)"
-install_err="$(mktemp)"
-trap 'rm -f "$install_out" "$install_err"' EXIT
+trap 'rm -f "$install_out"' EXIT
 install_args=(--configure --host "$SSH_HOST" --port "$SSH_PORT")
 [[ "$USE_LOCAL_BINARIES" -eq 1 ]] && install_args=(--skip-binary "${install_args[@]}")
 install_args_quoted="$(printf '%q ' "${install_args[@]}")"
 install_failed=0
+remote_env="HOPPER_REF=$(printf %q "$HOPPER_REF") HOPPER_INSTALL_DIR=$(printf %q "$REMOTE_PATH_EXPANDED")"
 if [[ "$USE_LOCAL" -eq 1 ]]; then
   log "Uploading local server tree to ${REMOTE_PATH_EXPANDED}..."
   ssh_cmd "mkdir -p $(printf %q "$REMOTE_PATH_EXPANDED")"
@@ -210,22 +210,19 @@ if [[ "$USE_LOCAL" -eq 1 ]]; then
   if [[ "$USE_LOCAL_BINARIES" -eq 1 ]]; then
     sync_local_binaries "$BINARIES_DIR"
   fi
-  remote_install_cmd="cd $(printf %q "$REMOTE_PATH_EXPANDED") && ./install.sh --skip-sync ${install_args_quoted}"
-  ssh_cmd "$remote_install_cmd" >"$install_out" 2>"$install_err" || install_failed=1
+  remote_install_cmd="cd $(printf %q "$REMOTE_PATH_EXPANDED") && ${remote_env} ./install.sh --skip-sync ${install_args_quoted}"
+  ssh_cmd "$remote_install_cmd" 2>&1 | tee "$install_out" || install_failed=1
 else
   if [[ "$USE_LOCAL_BINARIES" -eq 1 ]]; then
     sync_local_binaries "$BINARIES_DIR"
   fi
   log "Remote install URL: ${INSTALL_URL}"
-  remote_install_cmd="curl -fsSL $(printf %q "$INSTALL_URL") | HOPPER_REF=$(printf %q "$HOPPER_REF") HOPPER_INSTALL_DIR=$(printf %q "$REMOTE_PATH_EXPANDED") bash -s -- ${install_args_quoted}"
-  ssh_cmd "$remote_install_cmd" >"$install_out" 2>"$install_err" || install_failed=1
+  remote_install_cmd="curl -fsSL $(printf %q "$INSTALL_URL") | ${remote_env} bash -s -- ${install_args_quoted}"
+  ssh_cmd "$remote_install_cmd" 2>&1 | tee "$install_out" || install_failed=1
 fi
 if [[ "$install_failed" -eq 1 ]]; then
-  [[ -s "$install_err" ]] && cat "$install_err" >&2
-  [[ -s "$install_out" ]] && cat "$install_out" >&2
   die "Remote install command failed (see output above)"
 fi
-[[ -s "$install_err" ]] && cat "$install_err" >&2
 payload="$(extract_json_line <"$install_out")"
 [[ -n "$payload" ]] || {
   [[ -s "$install_out" ]] && cat "$install_out" >&2

@@ -61,6 +61,7 @@ done
 
 export HOPPER_DIR="${HOPPER_INSTALL_DIR}"
 mkdir -p "${HOPPER_DIR}"
+log "hopper install dir=${HOPPER_DIR} ref=${REF}"
 
 hopperctl() {
   if [[ -x "${HOPPER_DIR}/hopperctl" ]]; then
@@ -172,8 +173,17 @@ hopper_cli_ready() {
 }
 
 ensure_hopper_cli() {
+  local force="${1:-0}"
   ensure_python
-  if hopper_cli_ready; then
+  if [[ "$force" -eq 0 ]] && hopper_cli_ready; then
+    return 0
+  fi
+  if [[ "$force" -eq 1 ]] && hopper_cli_ready; then
+    log "Reinstalling hopper Python package..."
+    "${HOPPER_DIR}/.venv/bin/pip" install --upgrade pip
+    "${HOPPER_DIR}/.venv/bin/pip" install -e "${HOPPER_DIR}"
+    chmod +x "${HOPPER_DIR}/hopperctl" 2>/dev/null || true
+    hopper_cli_ready || die "hopper CLI bootstrap failed"
     return 0
   fi
   if [[ -d "${HOPPER_DIR}/.venv" ]]; then
@@ -182,8 +192,8 @@ ensure_hopper_cli() {
   fi
   log "Creating Python venv and installing hopper package..."
   python3 -m venv "${HOPPER_DIR}/.venv"
-  "${HOPPER_DIR}/.venv/bin/pip" install --upgrade pip -q
-  "${HOPPER_DIR}/.venv/bin/pip" install -e "${HOPPER_DIR}" -q
+  "${HOPPER_DIR}/.venv/bin/pip" install --upgrade pip
+  "${HOPPER_DIR}/.venv/bin/pip" install -e "${HOPPER_DIR}"
   chmod +x "${HOPPER_DIR}/hopperctl" 2>/dev/null || true
   hopper_cli_ready || die "hopper CLI bootstrap failed"
 }
