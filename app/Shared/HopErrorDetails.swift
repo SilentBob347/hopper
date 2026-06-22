@@ -15,6 +15,10 @@ enum HopErrorDetails {
             return stream
         }
 
+        if let tunnel = friendlyIPTunnelProtocolError(error) {
+            return tunnel
+        }
+
         if let hopper = friendlyHopperExtensionError(ns, error: error) {
             return hopper
         }
@@ -108,6 +112,41 @@ enum HopErrorDetails {
             """
         }
         return "SSH tunnel stream error. Check ~/.hopper/hopper.log on the server."
+    }
+
+    private static func friendlyIPTunnelProtocolError(_ error: Error) -> String? {
+        if let localized = error as? LocalizedError,
+           let description = localized.errorDescription,
+           !description.isEmpty,
+           String(describing: error).contains("IPTunnelProtocolError") {
+            return description
+        }
+
+        let ns = error as NSError
+        if ns.domain.contains("IPTunnelProtocolError") {
+            switch ns.code {
+            case 0:
+                return IPTunnelProtocolError.truncated.errorDescription
+            case 1:
+                return IPTunnelProtocolError.badVersion.errorDescription
+            case 2:
+                return IPTunnelProtocolError.badType.errorDescription
+            case 3:
+                return IPTunnelProtocolError.packetTooLarge.errorDescription
+            default:
+                break
+            }
+        }
+
+        let rendered = String(describing: error)
+        guard rendered.contains("IPTunnelProtocolError") else { return nil }
+        if rendered.contains("badVersion") {
+            return IPTunnelProtocolError.badVersion.errorDescription
+        }
+        if rendered.contains("assignFailed") {
+            return rendered
+        }
+        return "IPTunnel protocol error during VPN setup. Try Connect with restart hopperd."
     }
 
     private static func friendlyHopperExtensionError(_ ns: NSError, error: Error) -> String? {

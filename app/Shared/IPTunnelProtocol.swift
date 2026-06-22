@@ -85,12 +85,30 @@ struct AssignResponse: Codable {
     }
 }
 
-enum IPTunnelProtocolError: Error {
+enum IPTunnelProtocolError: Error, LocalizedError {
     case truncated
     case badVersion
     case badType
     case packetTooLarge
     case assignFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .truncated:
+            return "IPTunnel frame truncated — the hopper stream closed or sent a partial packet."
+        case .badVersion:
+            return """
+            IPTunnel protocol mismatch (expected v2). hopperd on the entry server may be outdated or the wrong process is listening on the chain port. \
+            Try Connect with “restart hopperd”, or on the server run: hopperctl start --chain-id … (after hopper update).
+            """
+        case .badType:
+            return "IPTunnel frame had an unknown type — hopperd may be outdated."
+        case .packetTooLarge:
+            return "IPTunnel packet exceeds maximum size."
+        case .assignFailed(let detail):
+            return "Overlay address assignment failed: \(detail)"
+        }
+    }
 }
 
 extension Data {

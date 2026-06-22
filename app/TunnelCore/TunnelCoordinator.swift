@@ -149,8 +149,7 @@ enum IPTunnelAssignClient {
         let frame = IPTunnelFrame(type: .assignReq, payload: reqData)
         try await stream.write(frame.encoded())
 
-        let responseData = try await stream.read()
-        let respFrame = try IPTunnelFrame.decode(from: responseData)
+        let respFrame = try await readFrame(from: stream)
         guard respFrame.type == .assignResp else {
             throw IPTunnelProtocolError.assignFailed("expected assign response")
         }
@@ -162,5 +161,15 @@ enum IPTunnelAssignClient {
             throw IPTunnelProtocolError.assignFailed("missing addr")
         }
         return addr
+    }
+
+    private static func readFrame(from stream: SSHByteStream) async throws -> IPTunnelFrame {
+        let header = try await stream.readFully(IPTunnelFrame.headerLength)
+        var frameData = Data(header)
+        let payloadLength = Int(frameData.uint16BE(at: 2))
+        if payloadLength > 0 {
+            frameData.append(try await stream.readFully(payloadLength))
+        }
+        return try IPTunnelFrame.decode(from: frameData)
     }
 }

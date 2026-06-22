@@ -130,6 +130,43 @@ final class SSHByteStream: @unchecked Sendable {
         }
     }
 
+    func readFully(_ count: Int) async throws -> Data {
+        guard count > 0 else { return Data() }
+        var result = Data()
+        result.reserveCapacity(count)
+        while result.count < count {
+            lock.lock()
+            if !pending.isEmpty {
+                let need = count - result.count
+                let take = min(need, pending.count)
+                result.append(pending.prefix(take))
+                pending.removeFirst(take)
+                lock.unlock()
+                continue
+            }
+            if isClosed {
+                lock.unlock()
+                throw SSHByteStreamError.closed
+            }
+            lock.unlock()
+
+            let chunk = try await read()
+            if chunk.isEmpty {
+                continue
+            }
+            let need = count - result.count
+            if chunk.count <= need {
+                result.append(chunk)
+            } else {
+                result.append(chunk.prefix(need))
+                lock.lock()
+                pending = Data(chunk.dropFirst(need)) + pending
+                lock.unlock()
+            }
+        }
+        return result
+    }
+
     func write(_ data: Data) async throws {
         writeLock.lock()
         defer { writeLock.unlock() }
