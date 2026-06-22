@@ -148,9 +148,11 @@ if [[ ! -f "${HOPPER_DIR}/pyproject.toml" ]]; then
   log "Fetching server tree (ref=${REF})..."
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
-  git clone --depth 1 --branch "${REF}" "${HOPPER_GIT_REMOTE}" "${TMP}/repo" 2>/dev/null \
-    || git clone --depth 1 "${HOPPER_GIT_REMOTE}" "${TMP}/repo"
-  checkout_git_ref "${TMP}/repo" "${REF}" || die "Cannot checkout git ref: ${REF}"
+  if ! git clone --depth 1 --single-branch --branch "${REF}" "${HOPPER_GIT_REMOTE}" "${TMP}/repo" 2>/dev/null; then
+    log "Branch clone failed — trying full shallow clone + checkout ${REF}"
+    git clone --depth 1 "${HOPPER_GIT_REMOTE}" "${TMP}/repo"
+    checkout_git_ref "${TMP}/repo" "${REF}" || die "Cannot checkout git ref: ${REF}"
+  fi
   SRC="${TMP}/repo/${HOPPER_GIT_SUBDIR}"
   [[ -d "$SRC" ]] || SRC="${TMP}/repo/server"
   [[ -d "$SRC" ]] || die "server/ not found in checkout"

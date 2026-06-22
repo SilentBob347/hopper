@@ -22,7 +22,7 @@ def _is_version_like_ref(ref: str) -> bool:
 
 
 def checkout_git_ref(root: Path, ref: str) -> None:
-    """Checkout a branch, tag, or commit; only use tags/ for version-like refs."""
+    """Checkout a tag or commit after a branch-less clone (never tags/ for branch names)."""
 
     def try_checkout(target: str) -> bool:
         r = subprocess.run(
@@ -55,23 +55,57 @@ def checkout_git_ref(root: Path, ref: str) -> None:
     die(f"Cannot checkout git ref: {ref}")
 
 
-def _reset_to_origin_branch(root: Path, ref: str) -> bool:
-    """Force local branch to match origin/ref (discard diverged shallow checkout)."""
-    for target in (f"origin/{ref}", "FETCH_HEAD"):
-        r = subprocess.run(
-            ["git", "-C", str(root), "reset", "--hard", target],
+def _log_head(root: Path) -> None:
+    head = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--short", "HEAD"],
+        capture_output=True,
+        text=True,
+    )
+    if head.returncode == 0 and head.stdout.strip():
+        log(f"git at {head.stdout.strip()}")
+
+
+def _fresh_clone(root: Path, remote: str, ref: str, subdir: str) -> None:
+    """Always replace .repo with a fresh shallow clone at ref."""
+    if root.exists():
+        log(f"Removing previous git checkout at {root}")
+        shutil.rmtree(root)
+
+    log(f"Cloning {remote} (ref {ref})...")
+    r = subprocess.run(
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            "--single-branch",
+            "--branch",
+            ref,
+            remote,
+            str(root),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode != 0:
+        detail = (r.stderr or r.stdout or "").strip()
+        log(f"Branch clone failed{f': {detail}' if detail else ''} — trying sparse clone + checkout")
+        subprocess.run(
+            ["git", "clone", "--depth", "1", remote, str(root)],
+            check=True,
             capture_output=True,
         )
-        if r.returncode == 0:
-            head = subprocess.run(
-                ["git", "-C", str(root), "rev-parse", "--short", "HEAD"],
-                capture_output=True,
-                text=True,
-            )
-            if head.returncode == 0 and head.stdout.strip():
-                log(f"git checkout at {head.stdout.strip()} (from {target})")
-            return True
-    return False
+        checkout_git_ref(root, ref)
+
+    subprocess.run(
+        ["git", "-C", str(root), "sparse-checkout", "init", "--cone"],
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(root), "sparse-checkout", "set", subdir],
+        capture_output=True,
+    )
+    _log_head(root)
 
 
 def sync_from_git(ref: str | None = None, target_version: str | None = None) -> Path:
@@ -82,33 +116,7 @@ def sync_from_git(ref: str | None = None, target_version: str | None = None) -> 
     checkout_ref = ref or f"v{target_version or version_field('version')}"
     root = repo_root()
 
-    if (root / ".git").is_dir():
-        log(f"Updating git checkout in {root} (ref {checkout_ref})...")
-        subprocess.run(["git", "-C", str(root), "fetch", "--depth", "1", "origin"], check=False)
-        subprocess.run(
-            ["git", "-C", str(root), "fetch", "origin", checkout_ref, "--depth", "1"],
-            capture_output=True,
-        )
-        if not _is_version_like_ref(checkout_ref):
-            subprocess.run(["git", "-C", str(root), "checkout", checkout_ref], capture_output=True)
-            if not _reset_to_origin_branch(root, checkout_ref):
-                checkout_git_ref(root, checkout_ref)
-        else:
-            checkout_git_ref(root, checkout_ref)
-        subprocess.run(["git", "-C", str(root), "sparse-checkout", "set", subdir], check=False)
-    else:
-        log(f"Cloning {remote} (ref {checkout_ref})...")
-        if root.exists():
-            shutil.rmtree(root)
-        r = subprocess.run(
-            ["git", "clone", "--depth", "1", "--branch", checkout_ref, remote, str(root)],
-            capture_output=True,
-        )
-        if r.returncode != 0:
-            subprocess.run(["git", "clone", "--depth", "1", remote, str(root)], check=True)
-            checkout_git_ref(root, checkout_ref)
-        subprocess.run(["git", "-C", str(root), "sparse-checkout", "init", "--cone"], check=False)
-        subprocess.run(["git", "-C", str(root), "sparse-checkout", "set", subdir], check=False)
+    _fresh_clone(root, remote, checkout_ref, subdir)
 
     src = root / subdir
     if not src.is_dir():
