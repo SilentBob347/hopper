@@ -41,7 +41,6 @@
 		A5B6C7D8E9F0A1B2C3D4E5F0A /* HopVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C7D8E9F0A1B2C3D4E5F608 /* HopVersion.swift */; };
 		A5B6C7D8E9F0A1B2C3D4E5F09 /* DeploySSHKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C7D8E9F0A1B2C3D4E5F603 /* DeploySSHKey.swift */; platformFilter = ios; };
 		A1B2C3D4E5F60718293A4B6E /* HopQRExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F60718293A4B6C6F /* HopQRExporter.swift */; };
-		C1D2E3F405162738495A6B7C /* HopProfileCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2E3F405162738495A6B7C8D /* HopProfileCodec.swift */; };
 		C4D5E6F708192A3B4C5D6E7F /* ServerExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E6F708192A3B4C5D6E7F80 /* ServerExportView.swift */; };
 		A04994D86929B1A6EF8BAC9F /* HopNodeProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D2D1273F6269AA697AD5F04 /* HopNodeProfile.swift */; };
 		A7B8C9D0E1F2031425364758 /* HopSSH.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F2031425364758697A8B9C /* HopSSH.swift */; };
@@ -117,7 +116,6 @@
 		B6C7D8E9F0A1B2C3D4E5F607 /* DeploySSH.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploySSH.swift; sourceTree = "<group>"; };
 		B6C7D8E9F0A1B2C3D4E5F608 /* HopVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HopVersion.swift; sourceTree = "<group>"; };
 		B2C3D4E5F60718293A4B6C6F /* HopQRExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HopQRExporter.swift; sourceTree = "<group>"; };
-		D2E3F405162738495A6B7C8D /* HopProfileCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HopProfileCodec.swift; sourceTree = "<group>"; };
 		D5E6F708192A3B4C5D6E7F80 /* ServerExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerExportView.swift; sourceTree = "<group>"; };
 		968697A8B9C0D1E2F3041526 /* ServerLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerLibraryView.swift; sourceTree = "<group>"; };
 		C7D8E9F0A1B2C3D4E5F60718 /* ServerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDetailView.swift; sourceTree = "<group>"; };
@@ -190,7 +188,6 @@
 				F250DD836A2049CFAE9D27E9 /* ProfileStore.swift */,
 				E2B01CB979EA814AFEAF4A71 /* HopQRParser.swift */,
 				B2C3D4E5F60718293A4B6C6F /* HopQRExporter.swift */,
-				D2E3F405162738495A6B7C8D /* HopProfileCodec.swift */,
 				A1B2C3D4E5F60718293A4B5D /* IPTunnelProtocol.swift */,
 				6621F4DA12D842B28C56BD8C /* TunnelBootstrap.swift */,
 				F2031425364758697A8B9C0D /* ChainTopology.swift */,
@@ -371,7 +368,6 @@
 				A5B6C7D8E9F0A1B2C3D4E5F0A /* HopVersion.swift in Sources */,
 				C4D5E6F708192A3B4C5D6E7F /* ServerExportView.swift in Sources */,
 				A1B2C3D4E5F60718293A4B6E /* HopQRExporter.swift in Sources */,
-				C1D2E3F405162738495A6B7C /* HopProfileCodec.swift in Sources */,
 				E1F2031425364758697A8B9 /* ChainProvisioner.swift in Sources */,
 				C9D0E1F2031425364758697 /* ChainTopology.swift in Sources */,
 				D0E1F2031425364758697A8 /* HopReadyReport.swift in Sources */,

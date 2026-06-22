@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .logutil import die, log
 from .paths import bin_dir, DAEMON_NAME, KEY_DIR, ChainContext, ensure_dirs
-from .version import version_field
+from .version import version_field, release_download_base
 
 
 def detect_arch() -> str:
@@ -57,9 +57,7 @@ def resolve_binary() -> Path:
 
 
 def refresh_binary_from_release() -> bool:
-    from .version import load_version
-
-    base = load_version().get("release_base_url", "")
+    base = release_download_base()
     if not base:
         return False
     dest = hopper_binary_path()
