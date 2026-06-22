@@ -109,7 +109,7 @@ ensure_python() {
   py_ver="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-venv python3-pip git curl
+    DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-venv python3-pip git curl ca-certificates
     [[ -n "$py_ver" ]] && DEBIAN_FRONTEND=noninteractive apt-get install -y "python${py_ver}-venv" 2>/dev/null || true
   elif command -v dnf >/dev/null 2>&1; then
     dnf install -y python3 python3-pip git curl

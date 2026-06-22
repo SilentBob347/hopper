@@ -59,7 +59,10 @@ def run_install(args: list[str]) -> int:
             try:
                 resolve_binary()
             except SystemExit:
-                log("WARN: hopperd binary not available yet — run update after release is published")
+                log(
+                    "WARN: hopperd binary not available — check deploy log above for download errors "
+                    "(GitHub release hopperd-linux-amd64 / hopperd-linux-arm64)"
+                )
 
     try:
         maybe_setcap()

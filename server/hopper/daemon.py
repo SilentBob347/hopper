@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .logutil import die, log
 from .paths import bin_dir, DAEMON_NAME, KEY_DIR, ChainContext, ensure_dirs
-from .version import version_field, release_download_base
+from .version import version_field, release_asset_urls, load_version
 
 
 def detect_arch() -> str:
@@ -57,29 +57,86 @@ def resolve_binary() -> Path:
 
 
 def refresh_binary_from_release() -> bool:
-    base = release_download_base()
-    if not base:
-        return False
+    load_version.cache_clear()
     dest = hopper_binary_path()
-    url = f"{base}/hopperd-linux-{detect_arch()}"
-    log(f"Downloading {url}...")
+    arch = detect_arch()
+    urls = release_asset_urls(arch)
+    if not urls:
+        log("ERROR: no hopperd release URLs configured (check VERSION.json git_remote)")
+        return False
+
+    last_err = ""
+    for url in urls:
+        log(f"Downloading {url}...")
+        err = _download_release_asset(url, dest)
+        if err is None:
+            log(f"Installed {dest.name} ({dest.stat().st_size} bytes)")
+            return True
+        log(f"Download failed: {err}")
+        last_err = err
+
+    log(f"ERROR: hopperd download failed for linux-{arch}: {last_err}")
+    return False
+
+
+def _download_release_asset(url: str, dest: Path) -> str | None:
+    """Download url to dest. Returns an error string, or None on success."""
     tmp = dest.with_name(dest.name + ".download")
-    try:
-        if shutil.which("curl"):
-            subprocess.run(["curl", "-fsSL", "-o", str(tmp), url], check=True)
-        elif shutil.which("wget"):
-            subprocess.run(["wget", "-q", "-O", str(tmp), url], check=True)
-        else:
-            return False
-    except subprocess.CalledProcessError:
+    tmp.unlink(missing_ok=True)
+    user_agent = "hopper-server-install"
+
+    if shutil.which("curl"):
+        result = subprocess.run(
+            [
+                "curl",
+                "-fsSL",
+                "--retry",
+                "2",
+                "--retry-delay",
+                "1",
+                "-A",
+                user_agent,
+                "-o",
+                str(tmp),
+                url,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            tmp.unlink(missing_ok=True)
+            return detail or f"curl exit {result.returncode}"
+    elif shutil.which("wget"):
+        result = subprocess.run(
+            ["wget", "-q", "-L", "--tries=2", "-O", str(tmp), url],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            tmp.unlink(missing_ok=True)
+            return detail or f"wget exit {result.returncode}"
+    else:
+        return "curl or wget required to download hopperd"
+
+    if not tmp.is_file() or tmp.stat().st_size < 1024:
         tmp.unlink(missing_ok=True)
-        return False
-    if not tmp.is_file() or tmp.stat().st_size == 0:
+        return "empty download (release missing or blocked?)"
+
+    if tmp.read_bytes()[:4] != b"\x7fELF":
         tmp.unlink(missing_ok=True)
-        return False
+        return "response is not a Linux binary (404 HTML or wrong asset name?)"
+
+    check = subprocess.run([str(tmp), "-check"], capture_output=True, text=True)
+    if check.returncode != 0:
+        detail = (check.stderr or check.stdout or "").strip()
+        tmp.unlink(missing_ok=True)
+        return detail or "hopperd -check failed"
+
     tmp.replace(dest)
     dest.chmod(0o755)
-    return True
+    return None
 
 
 def port_listening(port: int) -> bool:
