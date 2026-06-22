@@ -85,6 +85,15 @@ def ensure_python() -> None:
         die("python3 venv still unavailable after package install")
 
 
+def _python_env() -> dict[str, str]:
+    env = os.environ.copy()
+    root = str(hopper_dir())
+    env["HOPPER_DIR"] = root
+    prev = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = root if not prev else f"{root}{os.pathsep}{prev}"
+    return env
+
+
 def _venv_python_ready(vdir: Path) -> bool:
     vpy = vdir / "bin" / "python"
     if not vpy.is_file():
@@ -94,32 +103,30 @@ def _venv_python_ready(vdir: Path) -> bool:
         return False
     hopper_ok = subprocess.run(
         [str(vpy), "-c", "import hopper.cli"],
+        env=_python_env(),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
     return hopper_ok.returncode == 0
 
 
-def ensure_venv_packages(*, force_reinstall: bool = False) -> Path:
-    """Create venv and pip install hopper package + requirements."""
+def ensure_venv_packages() -> Path:
+    """Create venv and install third-party deps only (hopper runs from disk via PYTHONPATH)."""
     ensure_python()
     python = shutil.which("python3")
     if not python:
         die("python3 required")
     vdir = venv_dir()
-    ready = _venv_python_ready(vdir)
-    if not ready:
+    if not _venv_python_ready(vdir):
         if vdir.is_dir():
             log(f"Removing incomplete venv at {vdir}")
             shutil.rmtree(vdir)
         log(f"Creating venv at {vdir}")
         venv.create(vdir, with_pip=True)
-    elif force_reinstall:
-        log(f"Reinstalling hopper package in {vdir} after server tree update")
     vpy = vdir / "bin" / "python"
-    req = hopper_dir() / "requirements.txt"
     subprocess.run([str(vpy), "-m", "pip", "install", "--upgrade", "pip"], check=True)
-    subprocess.run([str(vpy), "-m", "pip", "install", "-e", str(hopper_dir())], check=True)
+    subprocess.run([str(vpy), "-m", "pip", "uninstall", "-y", "hopper-server"], capture_output=True)
+    req = hopper_dir() / "requirements.txt"
     if req.is_file():
         subprocess.run([str(vpy), "-m", "pip", "install", "-r", str(req)], check=True)
     return vpy

@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# Run hopper CLI via project venv (or system python -m hopper.cli).
+# Run hopper CLI from scripts on disk (PYTHONPATH); venv is for dependencies only.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export HOPPER_DIR="${HOPPER_DIR:-$SCRIPT_DIR}"
+export PYTHONPATH="${HOPPER_DIR}${PYTHONPATH:+:$PYTHONPATH}"
 
-if [[ -x "${HOPPER_DIR}/.venv/bin/python" ]]; then
-  exec "${HOPPER_DIR}/.venv/bin/python" -m hopper.cli "$@"
-fi
+run_python() {
+  if [[ -x "${HOPPER_DIR}/.venv/bin/python" ]]; then
+    exec "${HOPPER_DIR}/.venv/bin/python" -m hopper.cli "$@"
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    exec python3 -m hopper.cli "$@"
+  fi
+  echo "hopperctl: python3 required" >&2
+  exit 1
+}
 
-if command -v python3 >/dev/null 2>&1; then
-  exec python3 -m hopper.cli "$@"
-fi
-
-echo "hopperctl: python3 required" >&2
-exit 1
+run_python "$@"

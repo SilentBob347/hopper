@@ -6,7 +6,6 @@ HOPPER_REF="${HOPPER_REF:-main}"
 HOPPER_INSTALL_DIR="${HOPPER_INSTALL_DIR:-${HOME}/hopper}"
 HOPPER_GIT_REMOTE="${HOPPER_GIT_REMOTE:-https://github.com/ZonD80/hopper.git}"
 HOPPER_GIT_SUBDIR="${HOPPER_GIT_SUBDIR:-server}"
-RAW_BASE="${HOPPER_RAW_BASE:-https://raw.githubusercontent.com/ZonD80/hopper}"
 
 log() { echo "[install] $*" >&2; }
 die() { log "ERROR: $*"; exit 1; }
@@ -30,7 +29,7 @@ Options:
   -h, --help          Show help
 
 Environment:
-  HOPPER_REF, HOPPER_INSTALL_DIR, HOPPER_GIT_REMOTE, HOPPER_GIT_SUBDIR, HOPPER_RAW_BASE
+  HOPPER_REF, HOPPER_INSTALL_DIR, HOPPER_GIT_REMOTE, HOPPER_GIT_SUBDIR
 EOF
 }
 
@@ -60,6 +59,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 export HOPPER_DIR="${HOPPER_INSTALL_DIR}"
+export PYTHONPATH="${HOPPER_DIR}${PYTHONPATH:+:$PYTHONPATH}"
 mkdir -p "${HOPPER_DIR}"
 log "hopper install dir=${HOPPER_DIR} ref=${REF}"
 
@@ -68,7 +68,7 @@ hopperctl() {
     exec "${HOPPER_DIR}/hopperctl" "$@"
   fi
   if [[ -x "${HOPPER_DIR}/.venv/bin/python" ]]; then
-    exec "${HOPPER_DIR}/.venv/bin/python" -m hopper.cli "$@"
+    exec env PYTHONPATH="${PYTHONPATH}" "${HOPPER_DIR}/.venv/bin/python" -m hopper.cli "$@"
   fi
   die "hopperctl not available — bootstrap incomplete"
 }
@@ -124,10 +124,6 @@ ensure_python() {
   python3_venv_works || die "python3 venv still unavailable after package install"
 }
 
-ensure_python
-command -v git >/dev/null 2>&1 || { log "Installing git..."; ensure_python; }
-command -v curl >/dev/null 2>&1 || die "curl required"
-
 checkout_git_ref() {
   local repo="$1" ref="$2"
   if git -C "$repo" checkout "$ref" 2>/dev/null; then
@@ -143,67 +139,79 @@ checkout_git_ref() {
   return 1
 }
 
-# Seed minimal tree when piped from curl (no local checkout yet)
-if [[ ! -f "${HOPPER_DIR}/pyproject.toml" ]]; then
-  log "Fetching server tree (ref=${REF})..."
-  TMP="$(mktemp -d)"
-  trap 'rm -rf "$TMP"' EXIT
-  if ! git clone --depth 1 --single-branch --branch "${REF}" "${HOPPER_GIT_REMOTE}" "${TMP}/repo" 2>/dev/null; then
-    log "Branch clone failed — trying full shallow clone + checkout ${REF}"
-    git clone --depth 1 "${HOPPER_GIT_REMOTE}" "${TMP}/repo"
-    checkout_git_ref "${TMP}/repo" "${REF}" || die "Cannot checkout git ref: ${REF}"
+copy_tree_item() {
+  local src="$1" dest="$2"
+  if [[ -d "$src" ]]; then
+    mkdir -p "$dest"
+    cp -a "${src}/." "${dest}/"
+  else
+    cp -a "$src" "$dest"
   fi
-  SRC="${TMP}/repo/${HOPPER_GIT_SUBDIR}"
-  [[ -d "$SRC" ]] || SRC="${TMP}/repo/server"
-  [[ -d "$SRC" ]] || die "server/ not found in checkout"
+}
+
+sync_server_tree() {
+  local ref="$1"
+  local repo_dir="${HOPPER_DIR}/.repo"
+  local src subdir="${HOPPER_GIT_SUBDIR}"
+
+  log "git sync: ref=${ref}"
+  rm -rf "${repo_dir}"
+  log "Cloning ${HOPPER_GIT_REMOTE} (ref ${ref})..."
+  if ! git clone --depth 1 --single-branch --branch "${ref}" "${HOPPER_GIT_REMOTE}" "${repo_dir}" 2>&1; then
+    log "Branch clone failed — trying shallow clone + checkout ${ref}"
+    git clone --depth 1 "${HOPPER_GIT_REMOTE}" "${repo_dir}"
+    checkout_git_ref "${repo_dir}" "${ref}" || die "Cannot checkout git ref: ${ref}"
+  fi
+  git -C "${repo_dir}" sparse-checkout init --cone 2>/dev/null || true
+  git -C "${repo_dir}" sparse-checkout set "${subdir}" 2>/dev/null || true
+
+  local head
+  head="$(git -C "${repo_dir}" rev-parse --short HEAD 2>/dev/null || true)"
+  [[ -n "$head" ]] && log "git sync: at ${head}"
+
+  src="${repo_dir}/${subdir}"
+  [[ -d "$src" ]] || src="${repo_dir}/server"
+  [[ -d "$src" ]] || die "server/ not found in checkout"
+
   shopt -s dotglob nullglob
-  for item in "${SRC}"/*; do
+  for item in "${src}"/*; do
+    local base
     base="$(basename "$item")"
     [[ "$base" == ".repo" || "$base" == ".venv" || "$base" == "dist" ]] && continue
-    cp -a "$item" "${HOPPER_DIR}/"
+    copy_tree_item "$item" "${HOPPER_DIR}/${base}"
   done
   chmod +x "${HOPPER_DIR}"/*.sh 2>/dev/null || true
   chmod +x "${HOPPER_DIR}/hopperctl" 2>/dev/null || true
+  log "git sync: server tree updated"
+}
+
+ensure_python
+command -v git >/dev/null 2>&1 || { log "Installing git..."; ensure_python; }
+command -v curl >/dev/null 2>&1 || die "curl required"
+
+if [[ "$SKIP_SYNC" -eq 0 ]]; then
+  sync_server_tree "${REF}"
+elif [[ ! -f "${HOPPER_DIR}/pyproject.toml" ]]; then
+  die "No server tree at ${HOPPER_DIR} — run without --skip-sync first"
 fi
 
-export HOPPER_DIR
-
-hopper_cli_ready() {
-  [[ -x "${HOPPER_DIR}/.venv/bin/python" ]] \
-    && "${HOPPER_DIR}/.venv/bin/python" -m pip --version >/dev/null 2>&1 \
-    && "${HOPPER_DIR}/.venv/bin/python" -c "import hopper.cli" 2>/dev/null
-}
-
-ensure_hopper_cli() {
-  local force="${1:-0}"
-  ensure_python
-  if [[ "$force" -eq 0 ]] && hopper_cli_ready; then
-    return 0
+ensure_venv() {
+  if [[ ! -x "${HOPPER_DIR}/.venv/bin/python" ]]; then
+    log "Creating Python venv..."
+    python3 -m venv "${HOPPER_DIR}/.venv"
   fi
-  if [[ "$force" -eq 1 ]] && hopper_cli_ready; then
-    log "Reinstalling hopper Python package..."
-    "${HOPPER_DIR}/.venv/bin/pip" install --upgrade pip
-    "${HOPPER_DIR}/.venv/bin/pip" install -e "${HOPPER_DIR}"
-    chmod +x "${HOPPER_DIR}/hopperctl" 2>/dev/null || true
-    hopper_cli_ready || die "hopper CLI bootstrap failed"
-    return 0
-  fi
-  if [[ -d "${HOPPER_DIR}/.venv" ]]; then
-    log "Removing incomplete venv..."
-    rm -rf "${HOPPER_DIR}/.venv"
-  fi
-  log "Creating Python venv and installing hopper package..."
-  python3 -m venv "${HOPPER_DIR}/.venv"
   "${HOPPER_DIR}/.venv/bin/pip" install --upgrade pip
-  "${HOPPER_DIR}/.venv/bin/pip" install -e "${HOPPER_DIR}"
-  chmod +x "${HOPPER_DIR}/hopperctl" 2>/dev/null || true
-  hopper_cli_ready || die "hopper CLI bootstrap failed"
+  "${HOPPER_DIR}/.venv/bin/pip" uninstall -y hopper-server 2>/dev/null || true
+  if [[ -f "${HOPPER_DIR}/requirements.txt" ]]; then
+    "${HOPPER_DIR}/.venv/bin/pip" install -r "${HOPPER_DIR}/requirements.txt"
+  fi
+  PYTHONPATH="${HOPPER_DIR}" "${HOPPER_DIR}/.venv/bin/python" -c "import hopper.cli" \
+    || die "hopper CLI not importable from ${HOPPER_DIR}"
 }
 
-ensure_hopper_cli
+ensure_venv
 
-args=(install)
-[[ "$SKIP_SYNC" -eq 0 ]] && args+=(--ref "${REF}")
+args=(install --skip-sync)
 [[ "$SKIP_BINARY" -eq 1 ]] && args+=(--skip-binary)
 [[ "$CONFIGURE" -eq 1 ]] && args+=(--configure)
 [[ -n "$HOST" ]] && args+=(--host "$HOST")

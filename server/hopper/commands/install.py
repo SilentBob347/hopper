@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import json
-import os
+import sys
 
 from ..bootstrap import ensure_venv_packages, ensure_git
 from ..git_sync import copy_tree_into_install, sync_from_git
 from ..logutil import die, log
 from ..paths import hopper_dir
-from ..reexec import POST_SYNC_INSTALL, argv_without_flag, reexec_hopperctl
 
 
 def run_install(args: list[str]) -> int:
-    """Idempotent local install: venv, package, binaries, legacy cleanup."""
+    """Idempotent local install: venv deps, hopperd binary, legacy cleanup."""
     ref = ""
     configure = False
     host = ""
     port = 22
     skip_binary = False
+    skip_sync = False
 
     i = 0
     while i < len(args):
@@ -34,9 +34,12 @@ def run_install(args: list[str]) -> int:
             port = int(args[i])
         elif a == "--skip-binary":
             skip_binary = True
+        elif a == "--skip-sync":
+            skip_sync = True
         elif a in ("-h", "--help"):
             print(
-                "Usage: hopper install [--ref TAG] [--configure] [--host H] [--port P] [--skip-binary]",
+                "Usage: hopper install [--ref TAG] [--skip-sync] [--configure] "
+                "[--host H] [--port P] [--skip-binary]",
                 file=sys.stderr,
             )
             return 0
@@ -44,29 +47,20 @@ def run_install(args: list[str]) -> int:
             die(f"Unknown argument: {a}")
         i += 1
 
-    post_sync = os.environ.get(POST_SYNC_INSTALL) == "1"
-
     ensure_git()
     hopper_dir().mkdir(parents=True, exist_ok=True)
     log(
         f"install start: dir={hopper_dir()} ref={ref or '(none)'} "
-        f"skip_binary={skip_binary} configure={configure} post_sync={post_sync}"
+        f"skip_sync={skip_sync} skip_binary={skip_binary} configure={configure}"
     )
 
-    if ref and not post_sync:
+    if ref and not skip_sync:
         log(f"git sync: ref={ref}")
         src = sync_from_git(ref=ref)
-        log(f"git sync: copying from {src}")
         copy_tree_into_install(src)
-        ensure_venv_packages(force_reinstall=True)
-        log("git sync: server tree updated — reloading hopperctl")
-        reexec_hopperctl(
-            "install",
-            argv_without_flag(args, "--ref", takes_value=True),
-            env_flag=POST_SYNC_INSTALL,
-        )
+        log("git sync: server tree updated")
 
-    ensure_venv_packages(force_reinstall=post_sync)
+    ensure_venv_packages()
 
     from ..daemon import maybe_setcap, refresh_binary_from_release, resolve_binary, stop_all_legacy_cleanup
 
