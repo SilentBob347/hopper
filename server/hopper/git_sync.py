@@ -55,6 +55,25 @@ def checkout_git_ref(root: Path, ref: str) -> None:
     die(f"Cannot checkout git ref: {ref}")
 
 
+def _reset_to_origin_branch(root: Path, ref: str) -> bool:
+    """Force local branch to match origin/ref (discard diverged shallow checkout)."""
+    for target in (f"origin/{ref}", "FETCH_HEAD"):
+        r = subprocess.run(
+            ["git", "-C", str(root), "reset", "--hard", target],
+            capture_output=True,
+        )
+        if r.returncode == 0:
+            head = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "--short", "HEAD"],
+                capture_output=True,
+                text=True,
+            )
+            if head.returncode == 0 and head.stdout.strip():
+                log(f"git checkout at {head.stdout.strip()} (from {target})")
+            return True
+    return False
+
+
 def sync_from_git(ref: str | None = None, target_version: str | None = None) -> Path:
     ensure_git()
     ver = load_version()
@@ -64,13 +83,18 @@ def sync_from_git(ref: str | None = None, target_version: str | None = None) -> 
     root = repo_root()
 
     if (root / ".git").is_dir():
-        log(f"Updating git checkout in {root}...")
+        log(f"Updating git checkout in {root} (ref {checkout_ref})...")
         subprocess.run(["git", "-C", str(root), "fetch", "--depth", "1", "origin"], check=False)
         subprocess.run(
             ["git", "-C", str(root), "fetch", "origin", checkout_ref, "--depth", "1"],
             capture_output=True,
         )
-        checkout_git_ref(root, checkout_ref)
+        if not _is_version_like_ref(checkout_ref):
+            subprocess.run(["git", "-C", str(root), "checkout", checkout_ref], capture_output=True)
+            if not _reset_to_origin_branch(root, checkout_ref):
+                checkout_git_ref(root, checkout_ref)
+        else:
+            checkout_git_ref(root, checkout_ref)
         subprocess.run(["git", "-C", str(root), "sparse-checkout", "set", subdir], check=False)
     else:
         log(f"Cloning {remote} (ref {checkout_ref})...")
