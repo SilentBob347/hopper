@@ -6,6 +6,44 @@
 
 iOS and Android VPN clients plus a Linux server stack for a **multi-hop SSH overlay**: traffic is tunneled as raw IP packets over SSH, routed through a chain of nodes, and NAT’d at the exit. One app, one server daemon (`hopperd`), no legacy relays.
 
+## Getting the app
+
+| Platform | Status |
+| -------- | ------ |
+| **iOS / Android (developer-signed)** | Available in [GitHub Releases](https://github.com/ZonD80/hopper/releases) — install the IPA or APK from the latest release |
+| **Apple App Store** | Pending |
+| **Google Play** | Pending |
+
+Store listings are in progress. Until they are live, use the signed builds from Releases (you may need to trust the developer certificate on iOS or allow installs from unknown sources on Android).
+
+## Setting up a server
+
+Each hop in your chain runs `hopperd` on a Linux VPS. You need one VPS per hop (a single VPS works for a one-hop chain where entry = exit).
+
+### Get a VPS
+
+For the simplest setup, rent the **cheapest Ubuntu VPS** you can find (any provider — Hetzner, DigitalOcean, Vultr, etc.). Use a fresh machine with:
+
+- **User:** `root`
+- **Auth:** root password (SSH password login enabled)
+
+The server must have TUN support (`/dev/net/tun`), `python3`, `ip`, and `iptables` (for exit NAT). Ubuntu images from major providers include these by default.
+
+### Deploy from the app
+
+You do **not** need a Mac or `deploy.sh` to get started. The app installs and configures the server for you:
+
+1. Open **ɹǝddoH** → **Configure chains** → **Server library**.
+2. Tap **Deploy**.
+3. Enter the VPS **host/IP**, **user** (`root`), **SSH port** (`22`), and **root password**.
+4. Wait for the deploy log to finish — the server is added to your library automatically (no QR scan needed).
+
+The app uploads `hopperd`, runs `configure_server.sh`, generates a deploy key, and saves the server profile locally. Repeat for each hop.
+
+**Alternative (developers):** deploy from your Mac with `./deploy.sh` — see [Deploy from the command line](#deploy-from-the-command-line).
+
+You can also add servers via **Scan QR** or **Import JSON** if you used the CLI deploy flow.
+
 ## Screenshots
 
 ### iPhone
@@ -63,7 +101,7 @@ flowchart LR
 
 | Layer           | Role                                                                                             |
 | --------------- | ------------------------------------------------------------------------------------------------ |
-| **iOS**         | L3 VPN (`NEPacketTunnelProvider`). All IPv4 default traffic → overlay client `10.64.0.2`.        |
+| **iOS**         | L3 VPN (`NEPacketTunnelProvider`). All IPv4 default traffic → leased overlay client address.     |
 | **Android**     | L3 VPN (`VpnService`). Same overlay address and iptunnel data plane as iOS.                      |
 | **iptunnel** | Framed IP over a byte stream (SSH `direct-tcpip` to `127.0.0.1:7400`).                           |
 | **hopperd**  | Userspace routing between ingress (client), `next` (downstream hop), and TUN (internet on exit). |
@@ -76,13 +114,25 @@ flowchart LR
 
 Chain order in the app: **first = entry**, **last = exit**.
 
-### Overlay (`10.64.0.0/24`)
+### Multi-chain and multi-device
 
-| Address              | Use                              |
-| -------------------- | -------------------------------- |
-| `10.64.0.2`          | Mobile client (iOS / Android)    |
-| `10.64.0.10` + index | Hop *i* in chain (entry = `.10`) |
-| `0.0.0.0/0`          | Relay → `next`; exit → TUN + NAT |
+Hopper supports **multiple chains** and **multiple clients per chain** on the same servers.
+
+**Multi-chain** — Each chain has its own UUID. That ID derives a dedicated overlay subnet (`10.64.{octet}.0/24`), local `hopperd` listen port (`7400 + octet`), and TUN interface (`hopper_*`) on every hop. State lives under `~/.hopper/chains/{chain_id}/`; active chains are tracked in `~/.hopper/registry.json`. The same VPS can serve several chains at once (as entry, relay, or exit in different chains).
+
+**Multi-device** — Several phones or tablets can connect to the **same chain** at the same time. Each app install gets a stable device ID; the entry hop assigns a unique client address from that chain's pool (`10.64.{octet}.2`–`.254`) via lease. Leases renew while connected and expire after idle timeout (default 1 hour).
+
+**TUN limits** — Each active chain uses **one TUN interface per hop** where `hopperd` runs. How many chains you can run in parallel on a server depends on how many TUN devices the host allows (typically many on a stock Linux VPS, but the limit varies by kernel and provider).
+
+### Overlay (per chain)
+
+Each chain gets its own `/24` subnet: `10.64.{octet}.0/24`, where `{octet}` is derived from the chain UUID (1–254).
+
+| Address | Use |
+| ------- | --- |
+| `10.64.{octet}.2`–`.254` | Mobile clients (leased per device) |
+| `10.64.{octet}.10` + index | Hop *i* in chain (entry = `.10`) |
+| `0.0.0.0/0` | Relay → `next`; exit → TUN + NAT |
 
 ---
 
@@ -116,7 +166,23 @@ Chain order in the app: **first = entry**, **last = exit**.
 
 ## Quick start
 
-### 1. Deploy a hop
+1. [Get the app](#getting-the-app) and [set up one or more servers](#setting-up-a-server).
+2. **New chain** → name it → **Add server…** in order **entry → exit** (pick servers from the library).
+3. Swipe **Use** (iOS) or tap **Use** (Android), or pick the chain on the home screen → **Connect**.
+
+### Remove a hop
+
+```bash
+./remove.sh YOUR_SERVER_IP
+```
+
+Stops `hopperd`, removes `~/hopper`, `~/.hopper`, TUN `hopper0`, hopper NAT rules, and hopper lines in `authorized_keys`.
+
+---
+
+## Server reference
+
+### Deploy from the command line
 
 From your Mac:
 
@@ -143,24 +209,6 @@ Options (same as `remove.sh`):
 | `--no-build` | —               | Skip `build_dist.sh` |
 
 Environment: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT`, `DEPLOY_KEY`, `DEPLOY_PATH`.
-
-### 2. Add hops in the app
-
-1. Open **ɹǝddoH** → **Configure chains** → **Server library** → **Scan QR** (once per machine). On Android you can also **Import JSON** from the deploy page.
-2. **New chain** → name it → **Add server…** in order **entry → exit**.
-3. Swipe **Use** (iOS) or tap **Use** (Android), or pick the chain on the home screen → **Connect**.
-
-### 3. Remove a hop
-
-```bash
-./remove.sh YOUR_SERVER_IP
-```
-
-Stops `hopperd`, removes `~/hopper`, `~/.hopper`, TUN `hopper0`, hopper NAT rules, and hopper lines in `authorized_keys`.
-
----
-
-## Server reference
 
 ### Layout on the machine
 
@@ -240,26 +288,45 @@ Binaries land in `server/dist/` (gitignored).
 | **Home**             | Select chain, connect/disconnect, route preview |
 | **Configure chains** | Create/delete chains, open server library       |
 | **Chain detail**     | Name, reorder hops, add/remove servers          |
-| **Server library**   | Scan QR, delete saved servers                   |
+| **Server library**   | **Deploy** new servers, scan QR, import JSON, delete saved servers |
 
 Profiles persist in the App Group (`hopper-profiles.json`).
 
-### QR payload (v2)
+### Server profile JSON (v2)
+
+Scan QR, **Import JSON**, and `./deploy.sh` all use the same **v2** wire format (`HopProfileCodec` on iOS/Android, `server/hopper/node_profile.py` on the server). The app stores servers in a library; chains reference server IDs in order.
+
+**Example** (as emitted by `configure_server.sh --json-only`):
 
 ```json
 {
   "v": 2,
-  "name": "hostname",
+  "name": "vps.example.com",
   "host": "203.0.113.10",
   "port": "22",
   "user": "root",
   "private_key": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
-  "host_key": ["ssh-ed25519 AAAA..."],
-  "install_dir": "/root/hopper"
+  "install_dir": "~/hopper",
+  "server_version": "2.0.0",
+  "min_app_version": "2.0.0",
+  "host_key": ["ssh-ed25519 AAAA..."]
 }
 ```
 
-The app stores servers in a library; chains reference server IDs in order.
+| Field | Required | Notes |
+| ----- | -------- | ----- |
+| `v` | No | Must be `2` when present; other values are rejected |
+| `host` | Yes | SSH hostname or IP. Alias: `server` |
+| `user` | Yes | SSH user. Alias: `username` |
+| `private_key` | Yes | OpenSSH private key for this hop (`~/.hopper/id_ed25519` from configure). Alias: `privateKey` |
+| `port` | No | SSH port as a string; default `22` |
+| `name` | No | Display label; defaults to host or `Untitled`. Aliases: `title`, `remarks` |
+| `install_dir` | No | Remote bundle path; default `~/hopper`. Aliases: `installDir`, `hopper_dir` |
+| `server_version` | No | Server bundle version from `VERSION.json`; export uses `unknown` if empty. Alias: `serverVersion` |
+| `min_app_version` | No | Minimum client version required by the server; export uses `unknown` if empty. Alias: `minAppVersion` |
+| `host_key` | No | SSH host key pin(s) for first connect — string or array. Alias: `hostKeys` |
+
+Treat exported JSON and QR codes as **secrets** (they contain the hop private key).
 
 ### Build & run
 
@@ -302,9 +369,9 @@ server/
 
 ## Android app reference
 
-Same screens and flow as iOS: home (chain + connect), chain configurator, chain detail, server library (QR scan + JSON import).
+Same screens and flow as iOS: home (chain + connect), chain configurator, chain detail, server library (**Deploy**, QR scan + JSON import).
 
-Profiles persist in app-private storage (`hopper-profiles.json`). QR payload format is identical to iOS (v2 JSON above).
+Profiles persist in app-private storage (`hopper-profiles.json`). Server profile JSON format is identical to iOS — see [Server profile JSON (v2)](#server-profile-json-v2).
 
 ### Build & run
 
