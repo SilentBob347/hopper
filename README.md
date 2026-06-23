@@ -10,11 +10,12 @@ iOS and Android VPN clients plus a Linux server stack for a **multi-hop SSH over
 
 | Platform | Status |
 | -------- | ------ |
+| **iOS (TestFlight)** | [Join the beta](https://testflight.apple.com/join/QCeqF71s) — install [TestFlight](https://apps.apple.com/app/testflight/id899247664) first, then open the link on your iPhone or iPad |
 | **iOS / Android (developer-signed)** | Available in [GitHub Releases](https://github.com/ZonD80/hopper/releases) — install the IPA or APK from the latest release |
 | **Apple App Store** | Pending |
 | **Google Play** | Pending |
 
-Store listings are in progress. Until they are live, use the signed builds from Releases (you may need to trust the developer certificate on iOS or allow installs from unknown sources on Android).
+Store listings are in progress. For iOS, TestFlight is the easiest option. Alternatively, use the signed builds from Releases (you may need to trust the developer certificate on iOS or allow installs from unknown sources on Android).
 
 ## Setting up a server
 
