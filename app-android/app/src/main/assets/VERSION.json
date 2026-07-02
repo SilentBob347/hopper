@@ -1,6 +1,6 @@
 {
-  "version": "2.5.0",
-  "min_app_version": "2.5.0",
+  "version": "2.5.1",
+  "min_app_version": "2.5.1",
   "min_server_version": "2.0.0",
   "protocol_version": 2,
   "git_remote": "https://github.com/ZonD80/hopper.git",

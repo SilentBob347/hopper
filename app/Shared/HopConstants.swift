@@ -4,7 +4,7 @@ enum HopConstants {
     static let appDisplayName = "ɹǝddoH"
 
     static var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.5.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.5.1"
     }
 
     static let appGroupID = "group.com.aengix.hopper"

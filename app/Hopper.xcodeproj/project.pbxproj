@@ -444,7 +444,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aengix.hopper;
 				PRODUCT_NAME = Hopper;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -470,7 +470,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aengix.hopper.tunnel;
 				PRODUCT_NAME = HopperExtension;
 				SKIP_INSTALL = YES;
@@ -501,7 +501,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aengix.hopper;
 				PRODUCT_NAME = Hopper;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -527,7 +527,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aengix.hopper.tunnel;
 				PRODUCT_NAME = HopperExtension;
 				SKIP_INSTALL = YES;

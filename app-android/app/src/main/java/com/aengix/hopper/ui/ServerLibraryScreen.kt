@@ -29,7 +29,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aengix.hopper.model.HopNodeProfile
@@ -42,8 +41,16 @@ fun ServerLibraryScreen(
     onBack: () -> Unit,
     onServerDetail: (String) -> Unit,
     onRequestCameraPermission: (onGranted: () -> Unit) -> Unit,
+    chainId: String? = null,
 ) {
     val state by vpn.state.collectAsState()
+    val isPickMode = chainId != null
+    val chain = chainId?.let { id -> state.chains.firstOrNull { it.id == id } }
+    val displayedServers = when {
+        chain != null -> state.servers.filter { server -> server.id !in chain.hopIDs }
+        isPickMode -> emptyList()
+        else -> state.servers
+    }
     var showImport by remember { mutableStateOf(false) }
     var showScanner by remember { mutableStateOf(false) }
     var showDeploy by remember { mutableStateOf(false) }
@@ -52,7 +59,7 @@ fun ServerLibraryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Servers") },
+                title = { Text(if (isPickMode) "Add server" else "Servers") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -62,19 +69,19 @@ fun ServerLibraryScreen(
                     TextButton(onClick = { showDeploy = true }) {
                         Text("Deploy")
                     }
-                    TextButton(onClick = { showImport = true }) {
-                        Text("Import")
-                    }
                     TextButton(onClick = {
                         onRequestCameraPermission { showScanner = true }
                     }) {
                         Text("Scan QR")
                     }
+                    TextButton(onClick = { showImport = true }) {
+                        Text("Import")
+                    }
                 },
             )
         },
     ) { padding ->
-        if (state.servers.isEmpty()) {
+        if (displayedServers.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -82,7 +89,11 @@ fun ServerLibraryScreen(
                     .padding(16.dp),
             ) {
                 Text(
-                    "No servers — deploy a server, scan a QR code, or import JSON.",
+                    if (isPickMode) {
+                        "No servers — deploy a server, scan a QR code, or import JSON, then tap to add to this chain."
+                    } else {
+                        "No servers — deploy a server, scan a QR code, or import JSON."
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -94,11 +105,20 @@ fun ServerLibraryScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(state.servers, key = { it.id }) { server ->
+                items(displayedServers, key = { it.id }) { server ->
                     ServerLibraryRow(
                         server = server,
-                        onClick = { onServerDetail(server.id) },
-                        onDelete = { serverToDelete = server },
+                        onClick = {
+                            if (isPickMode && chainId != null) {
+                                vpn.addServerToChain(chainId, server.id)
+                                onBack()
+                            } else {
+                                onServerDetail(server.id)
+                            }
+                        },
+                        onDelete = if (isPickMode) null else {
+                            { serverToDelete = server }
+                        },
                     )
                 }
             }
@@ -168,7 +188,7 @@ fun ServerLibraryScreen(
 private fun ServerLibraryRow(
     server: HopNodeProfile,
     onClick: () -> Unit,
-    onDelete: () -> Unit,
+    onDelete: (() -> Unit)?,
 ) {
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
         ListItem(
@@ -177,13 +197,15 @@ private fun ServerLibraryRow(
                 Text("${server.trimmedUser}@${server.trimmedHost}:${server.port}")
             },
             modifier = Modifier.clickable(onClick = onClick),
-            trailingContent = {
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete server",
-                        tint = MaterialTheme.colorScheme.error,
-                    )
+            trailingContent = onDelete?.let { delete ->
+                {
+                    IconButton(onClick = delete) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete server",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             },
         )

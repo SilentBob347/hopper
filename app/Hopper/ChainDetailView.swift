@@ -5,7 +5,6 @@ struct ChainDetailView: View {
     let chainID: UUID
 
     @State private var name: String = ""
-    @State private var showAddServer = false
     @State private var statusLoading = false
 
     private var chain: HopChain? {
@@ -93,8 +92,11 @@ struct ChainDetailView: View {
                             }
                         }
 
-                        Button("Add server…") { showAddServer = true }
-                            .disabled(availableServers.isEmpty)
+                        NavigationLink {
+                            ServerLibraryView(chainID: chainID)
+                        } label: {
+                            Text("Add server…")
+                        }
                     }
                 }
             } else {
@@ -111,36 +113,6 @@ struct ChainDetailView: View {
         .onAppear {
             name = chain?.name ?? ""
         }
-        .sheet(isPresented: $showAddServer) {
-            NavigationStack {
-                List(availableServers) { server in
-                    Button {
-                        vpn.addServerToChain(chainID: chainID, serverID: server.id)
-                        showAddServer = false
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(server.displayName).font(.headline)
-                            Text("\(server.trimmedUser)@\(server.trimmedHost):\(server.port)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .foregroundStyle(.primary)
-                }
-                .navigationTitle("Add server")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { showAddServer = false }
-                    }
-                }
-            }
-        }
-    }
-
-    private var availableServers: [HopNodeProfile] {
-        guard let chain else { return vpn.state.servers }
-        let used = Set(chain.hopIDs)
-        return vpn.state.servers.filter { !used.contains($0.id) }
     }
 
     private func roleLabel(index: Int, total: Int, hop: HopNodeProfile) -> String {
