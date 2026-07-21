@@ -58,6 +58,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "${HOPPER_INSTALL_DIR}" in
+  "~") HOPPER_INSTALL_DIR="${HOME}" ;;
+  "~/"*) HOPPER_INSTALL_DIR="${HOME}/${HOPPER_INSTALL_DIR#"~/"}" ;;
+esac
+
 export HOPPER_DIR="${HOPPER_INSTALL_DIR}"
 export PYTHONPATH="${HOPPER_DIR}${PYTHONPATH:+:$PYTHONPATH}"
 mkdir -p "${HOPPER_DIR}"
