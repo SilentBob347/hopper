@@ -392,7 +392,7 @@ extension OpenSSH.PrivateKey {
         let paddingLength = privateKeyBuffer.readableBytes
         
         guard
-            paddingLength < cipher.blockSize,
+            paddingLength <= cipher.blockSize,
             let padding = privateKeyBuffer.readBytes(length: paddingLength)
         else {
             throw InvalidOpenSSHKey.invalidPadding

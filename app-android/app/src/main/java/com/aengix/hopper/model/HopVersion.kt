@@ -29,7 +29,7 @@ object HopVersion {
     }
 
     private fun loadManifest(context: Context): VersionManifest {
-        val fallback = VersionManifest("2.5.1", "2.5.1", "2.0.0", 2)
+        val fallback = VersionManifest("2.5.2", "2.5.2", "2.0.0", 2)
         return runCatching {
             context.assets.open("VERSION.json").use { stream ->
                 val text = BufferedReader(InputStreamReader(stream)).readText()
