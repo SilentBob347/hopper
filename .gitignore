@@ -8,6 +8,7 @@ server/udp-relay
 server/__debug_bin*
 .vscode
 app/dist/
+app/build/
 app-android/**/build/
 app-android/.gradle/
 app-android/local.properties
