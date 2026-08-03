@@ -8,7 +8,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from .logutil import die, log
+from .logutil import daily_hopper_log, die, log, log_keep_days, prune_hopper_logs
 from .paths import bin_dir, DAEMON_NAME, KEY_DIR, ChainContext, ensure_dirs
 from .version import version_field, release_asset_urls, load_version
 
@@ -295,26 +295,32 @@ def write_hopper_config(
 def start_hopperd_detached(ctx: ChainContext) -> int:
     binary = resolve_binary()
     time.sleep(0.2)
+    keep_days = log_keep_days()
+    prune_hopper_logs(ctx.chain_dir, keep_days=keep_days)
+    ctx.hopper_log = daily_hopper_log(ctx.chain_dir)
     log(f"Starting hopperd chain={ctx.chain_id} ({ctx.hopper_config})")
-    log_path = open(ctx.hopper_log, "a")
+    # hopperd owns daily rotate+prune via --log-dir; avoid holding a redirected FD
+    # that would prevent pruned log inodes from being freed while the daemon runs.
     cmd = [
         str(binary), "-verbose",
         "--config", str(ctx.hopper_config),
         "--ready-file", str(ctx.hopper_ready),
+        "--log-dir", str(ctx.chain_dir),
+        "--log-keep-days", str(keep_days),
     ]
     if shutil.which("setsid"):
         subprocess.Popen(
             ["setsid", "-f", *cmd],
-            stdout=log_path,
-            stderr=subprocess.STDOUT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
             start_new_session=True,
         )
     else:
         subprocess.Popen(
             cmd,
-            stdout=log_path,
-            stderr=subprocess.STDOUT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
             start_new_session=True,
         )

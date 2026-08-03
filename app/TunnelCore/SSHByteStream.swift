@@ -10,7 +10,7 @@ enum SSHByteStreamError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .closed:
-            return "SSH tunnel stream closed by the server — check ~/.hopper/hopper.log on the entry hop."
+            return "SSH tunnel stream closed by the server — check ~/.hopper/chains/<chain_id>/hopper-YYYY-MM-DD.log on the entry hop."
         case .invalidAddress:
             return "Could not open the local SSH forward channel."
         }

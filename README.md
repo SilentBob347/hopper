@@ -224,8 +224,11 @@ Environment: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT`, `DEPLOY_KEY`, `DEPLOY_
 
 ~/.hopper/
   id_ed25519            # inter-hop + hopperd SSH identity
-  hopper.json           # runtime config
-  hopper.log
+  registry.json         # active chains
+  chains/{chain_id}/
+    hopper.json         # runtime config for this chain
+    hopper-ready        # READY port line while running
+    hopper-YYYY-MM-DD.log  # daily hopperd logs (default retain 2 days)
 ```
 
 ### Scripts
@@ -261,11 +264,26 @@ Stdout: one JSON line, e.g. `{"ready":true,"mode":"exit","addr":"10.64.0.12",...
 ### `hopperd`
 
 ```bash
-~/.hopper/hopper.json    # default config path
-./dist/hopperd-linux-amd64 -verbose --config ~/.hopper/hopper.json --ready-file ~/.hopper/hopper-ready
+# typical chain paths (created by hopper start / the app)
+CHAIN=~/.hopper/chains/<chain_id>
+./dist/hopperd-linux-amd64 -verbose \
+  --config "$CHAIN/hopper.json" \
+  --ready-file "$CHAIN/hopper-ready" \
+  --log-dir "$CHAIN" \
+  --log-keep-days 2
 ```
 
-Listens on `127.0.0.1:7400` only (reached via SSH forwarding).
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--config` | `~/.hopper/hopper.json` | Runtime JSON config |
+| `--ready-file` | — | Write `READY <port>` when listening |
+| `--log-dir` | — | Daily logs as `hopper-YYYY-MM-DD.log` in this directory; rotate at local midnight; prune on write and hourly |
+| `--log-keep-days` | `2` | Calendar days of logs to keep (today counts as 1; `2` = today + yesterday) |
+| `-verbose` | off | Debug logging |
+
+When started via `hopper start` / the app, Python passes `--log-dir` and `--log-keep-days`. Override retention with env `HOPPER_LOG_KEEP_DAYS` (same default `2`).
+
+Listens on `127.0.0.1:7400` (or `7400 + overlay octet` per chain) only — reached via SSH forwarding.
 
 Example config: [`server/hopper.example.json`](server/hopper.example.json).
 
@@ -308,7 +326,7 @@ Scan QR, **Import JSON**, and `./deploy.sh` all use the same **v2** wire format 
   "user": "root",
   "private_key": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
   "install_dir": "~/hopper",
-  "server_version": "2.0.0",
+  "server_version": "2.0.1",
   "min_app_version": "2.0.0",
   "host_key": ["ssh-ed25519 AAAA..."]
 }
@@ -477,14 +495,14 @@ app-android/
 
 | Symptom                   | Things to check                                                                  |
 | ------------------------- | -------------------------------------------------------------------------------- |
-| VPN connects, no internet | Exit NAT: `iptables -t nat -L`; `hopper.log` on exit; re-connect to re-provision |
+| VPN connects, no internet | Exit NAT: `iptables -t nat -L`; today’s `hopper-YYYY-MM-DD.log` on exit; re-connect to re-provision |
 | Chain provision fails     | SSH from app to each hop; `start_server.sh` on server; keys in `authorized_keys` |
-| `hopperd` won’t start     | Root/`setcap cap_net_admin`; read `~/.hopper/hopper.log`                         |
+| `hopperd` won’t start     | Root/`setcap cap_net_admin`; read `~/.hopper/chains/<chain_id>/hopper-YYYY-MM-DD.log` |
 | Extension / VPN errors  | iOS: App Group + embedded extension; reinstall VPN profile. Android: revoke/re-grant VPN permission; check logcat `Hopper` |
 
 **Logs**
 
-- Server: `~/.hopper/hopper.log`
+- Server: `~/.hopper/chains/<chain_id>/hopper-YYYY-MM-DD.log` (daily; default keep 2 days via `--log-keep-days` / `HOPPER_LOG_KEEP_DAYS`)
 - iOS: Xcode → Window → Devices → open console for device, filter `Hopper`
 - Android: `adb logcat -s Hopper`
 

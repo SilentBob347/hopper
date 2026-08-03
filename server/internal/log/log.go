@@ -1,6 +1,7 @@
 package log
 
 import (
+	"io"
 	"log"
 	"os"
 )
@@ -11,6 +12,8 @@ func init() {
 	log.SetOutput(os.Stderr)
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 }
+
+func logSetOutput(w io.Writer) { log.SetOutput(w) }
 
 func SetVerbose(v bool) { Verbose = v }
 

@@ -108,10 +108,10 @@ enum HopErrorDetails {
         if rendered.contains("closed") {
             return """
             SSH tunnel stream closed — hopperd ended the session. On the entry server run: \
-            tail -30 ~/.hopper/hopper.log
+            tail -30 ~/.hopper/chains/*/hopper-*.log
             """
         }
-        return "SSH tunnel stream error. Check ~/.hopper/hopper.log on the server."
+        return "SSH tunnel stream error. Check ~/.hopper/chains/<chain_id>/hopper-YYYY-MM-DD.log on the server."
     }
 
     private static func friendlyIPTunnelProtocolError(_ error: Error) -> String? {

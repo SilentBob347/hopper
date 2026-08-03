@@ -14,13 +14,15 @@ import (
 	"github.com/aengix/hopper/server/internal/log"
 )
 
-var version = "2.0.0"
+var version = "2.0.1"
 
 func main() {
 	checkOnly := flag.Bool("check", false, "verify binary runs and exit")
 	versionFlag := flag.Bool("version", false, "print version JSON and exit")
 	configPath := flag.String("config", "", "hopper.json path")
 	readyFile := flag.String("ready-file", "", "write READY line to this path")
+	logDir := flag.String("log-dir", "", "directory for daily hopper-YYYY-MM-DD.log files")
+	logKeepDays := flag.Int("log-keep-days", log.DefaultKeepDays, "days of daily logs to retain (default 2: today + yesterday)")
 	verbose := flag.Bool("verbose", false, "verbose debug logging to stderr")
 	flag.Parse()
 
@@ -35,6 +37,13 @@ func main() {
 		out, _ := json.Marshal(map[string]string{"version": version})
 		fmt.Println(string(out))
 		return
+	}
+
+	if *logDir != "" {
+		if err := log.SetDailyDir(*logDir, *logKeepDays); err != nil {
+			fmt.Fprintf(os.Stderr, "log-dir: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	if *configPath == "" {

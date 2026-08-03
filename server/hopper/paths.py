@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .logutil import daily_hopper_log
+
 
 def hopper_dir() -> Path:
     env = os.environ.get("HOPPER_DIR")
@@ -52,7 +54,7 @@ class ChainContext:
             overlay_cidr=f"10.64.{octet}.0/24",
             listen_port=7400 + octet,
             hopper_ready=chain_dir / "hopper-ready",
-            hopper_log=chain_dir / "hopper.log",
+            hopper_log=daily_hopper_log(chain_dir),
             hopper_config=chain_dir / "hopper.json",
         )
 

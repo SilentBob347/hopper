@@ -152,7 +152,7 @@ class SSHByteStream(
     private var closed = false
 
     fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-        if (closed) throw SSHByteStreamException("SSH tunnel stream closed by the server — check ~/.hopper/hopper.log on the entry hop.")
+        if (closed) throw SSHByteStreamException("SSH tunnel stream closed by the server — check ~/.hopper/chains/<chain_id>/hopper-YYYY-MM-DD.log on the entry hop.")
         return input.read(buffer, offset, length)
     }
 
@@ -175,7 +175,7 @@ class SSHByteStream(
     }
 
     fun write(data: ByteArray) {
-        if (closed) throw SSHByteStreamException("SSH tunnel stream closed by the server — check ~/.hopper/hopper.log on the entry hop.")
+        if (closed) throw SSHByteStreamException("SSH tunnel stream closed by the server — check ~/.hopper/chains/<chain_id>/hopper-YYYY-MM-DD.log on the entry hop.")
         output.write(data)
         output.flush()
     }
