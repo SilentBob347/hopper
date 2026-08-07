@@ -16,14 +16,14 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.aengix.hopper"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.aengix.hopper"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 29
-        versionName = "2.5.2"
+        targetSdk = 36
+        versionCode = 32
+        versionName = "2.5.3"
     }
 
     signingConfigs {
