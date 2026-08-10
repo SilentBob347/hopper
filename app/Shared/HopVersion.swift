@@ -33,8 +33,8 @@ enum HopVersion {
 
     private static func loadManifest() -> VersionManifest {
         let fallback = VersionManifest(
-            version: "2.5.2",
-            minAppVersion: "2.5.2",
+            version: "2.6.0",
+            minAppVersion: "2.6.0",
             minServerVersion: "2.0.0",
             protocolVersion: 2
         )

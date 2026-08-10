@@ -76,6 +76,10 @@ enum HopProfileCodec {
             throw HopQRParser.ParseError.invalidJSON
         }
 
+        return try parseDictionary(json)
+    }
+
+    static func parseDictionary(_ json: [String: Any]) throws -> HopNodeProfile {
         if let version = intValue(in: json, keys: [Field.version]), version != profileVersion {
             throw HopQRParser.ParseError.invalidJSON
         }

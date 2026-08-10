@@ -1,0 +1,24 @@
+{
+  "salt_hex": "000102030405060708090a0b0c0d0e0f",
+  "nonce_hex": "101112131415161718191a1b",
+  "default_password": "ɹǝddoH",
+  "custom_password": "test-password-🔐",
+  "files": {
+    "server_default.hopperconf": {
+      "password": null,
+      "kind": "server"
+    },
+    "server_custom.hopperconf": {
+      "password": "test-password-🔐",
+      "kind": "server"
+    },
+    "chain_default.hopperconf": {
+      "password": null,
+      "kind": "chain"
+    },
+    "chain_custom.hopperconf": {
+      "password": "test-password-🔐",
+      "kind": "chain"
+    }
+  }
+}

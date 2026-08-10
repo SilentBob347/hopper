@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -48,9 +49,12 @@ fun ChainConfiguratorScreen(
     onBack: () -> Unit,
     onChainDetail: (String) -> Unit,
     onOpenServers: () -> Unit,
+    onRequestCameraPermission: (onGranted: () -> Unit) -> Unit,
 ) {
     val state by vpn.state.collectAsState()
     var chainToDelete by remember { mutableStateOf<HopChain?>(null) }
+    var showImport by remember { mutableStateOf(false) }
+    var showScanner by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -78,7 +82,7 @@ fun ChainConfiguratorScreen(
             }
             item {
                 Text(
-                    "Scan QR codes or import JSON in the server library, then build chains from those servers below.",
+                    "Manage individual servers in the library, or scan / import a shared chain or server below.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -116,6 +120,27 @@ fun ChainConfiguratorScreen(
                     Text("New chain")
                 }
             }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            onRequestCameraPermission { showScanner = true }
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Scan QR")
+                    }
+                    OutlinedButton(
+                        onClick = { showImport = true },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Import")
+                    }
+                }
+            }
         }
     }
 
@@ -137,6 +162,33 @@ fun ChainConfiguratorScreen(
             dismissButton = {
                 TextButton(onClick = { chainToDelete = null }) {
                     Text("Cancel")
+                }
+            },
+        )
+    }
+
+    if (showImport) {
+        ImportConfDialog(
+            onDismiss = { showImport = false },
+            onImport = { payload ->
+                vpn.importPayload(payload)
+                showImport = false
+            },
+            onError = vpn::setError,
+        )
+    }
+
+    if (showScanner) {
+        QRScannerScreen(
+            onDismiss = { showScanner = false },
+            onScan = { payload ->
+                runCatching {
+                    com.aengix.hopper.data.HopperConf.parsePayloadJson(payload)
+                }.onSuccess { imported ->
+                    vpn.importPayload(imported)
+                    showScanner = false
+                }.onFailure { error ->
+                    vpn.setError(error.message)
                 }
             },
         )

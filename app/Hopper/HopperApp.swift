@@ -8,6 +8,9 @@ struct HopperApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(vpn)
+                .onOpenURL { url in
+                    vpn.handleIncomingHopperConfURL(url)
+                }
         }
     }
 }

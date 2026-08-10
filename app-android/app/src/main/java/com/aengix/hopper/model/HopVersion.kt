@@ -24,16 +24,18 @@ object HopVersion {
     lateinit var manifest: VersionManifest
         private set
 
+    private val json = Json { ignoreUnknownKeys = true }
+
     fun init(context: Context) {
         manifest = loadManifest(context)
     }
 
     private fun loadManifest(context: Context): VersionManifest {
-        val fallback = VersionManifest("2.5.2", "2.5.2", "2.0.0", 2)
+        val fallback = VersionManifest("2.6.0", "2.6.0", "2.0.0", 2)
         return runCatching {
             context.assets.open("VERSION.json").use { stream ->
                 val text = BufferedReader(InputStreamReader(stream)).readText()
-                Json { ignoreUnknownKeys = true }.decodeFromString<VersionManifest>(text)
+                json.decodeFromString<VersionManifest>(text)
             }
         }.getOrElse { fallback }
     }

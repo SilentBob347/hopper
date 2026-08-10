@@ -13,3 +13,5 @@ app-android/**/build/
 app-android/.gradle/
 app-android/local.properties
 app-android/keystore.properties
+tests/hopperconf/.venv/
+

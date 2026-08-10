@@ -6,6 +6,7 @@ struct ChainDetailView: View {
 
     @State private var name: String = ""
     @State private var statusLoading = false
+    @State private var showExport = false
 
     private var chain: HopChain? {
         vpn.state.chains.first { $0.id == chainID }
@@ -106,9 +107,15 @@ struct ChainDetailView: View {
         .navigationTitle(chain?.displayName ?? "Chain")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !hops.isEmpty {
-                EditButton()
+            ToolbarItemGroup(placement: .primaryAction) {
+                if !hops.isEmpty {
+                    Button("Export…") { showExport = true }
+                    EditButton()
+                }
             }
+        }
+        .sheet(isPresented: $showExport) {
+            ChainExportView(chainName: chain?.name ?? "", hops: hops)
         }
         .onAppear {
             name = chain?.name ?? ""

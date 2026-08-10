@@ -22,8 +22,8 @@ android {
         applicationId = "com.aengix.hopper"
         minSdk = 26
         targetSdk = 36
-        versionCode = 32
-        versionName = "2.5.3"
+        versionCode = 36
+        versionName = "2.6.0"
     }
 
     signingConfigs {
@@ -97,6 +97,9 @@ dependencies {
     implementation("androidx.camera:camera-view:1.4.1")
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     implementation("com.google.zxing:core:3.5.3")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

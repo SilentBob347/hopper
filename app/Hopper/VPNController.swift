@@ -7,6 +7,12 @@ struct ServerUpdatePrompt: Identifiable, Equatable {
     let targetVersion: String
 }
 
+struct ChainImportPrompt: Identifiable, Equatable {
+    let id = UUID()
+    let chainID: UUID
+    let message: String
+}
+
 @MainActor
 final class VPNController: ObservableObject {
     @Published private(set) var state: AppState
@@ -14,15 +20,78 @@ final class VPNController: ObservableObject {
     @Published private(set) var provisionStatus: String?
     @Published var errorMessage: String?
     @Published var serverUpdatePrompt: ServerUpdatePrompt?
+    @Published var chainImportPrompt: ChainImportPrompt?
     @Published private(set) var chainStatusReports: [UUID: [ChainStatusReport]] = [:]
+    /// External `.hopperconf` open (Files / share sheet) awaiting password + import.
+    @Published var pendingHopperConfData: Data?
 
     private var manager: NETunnelProviderManager?
     private var statusObserver: NSObjectProtocol?
     private var pendingConnectRestart = false
+    private var ignoreDisconnectError = false
+    private var connectGeneration = 0
 
     init() {
         state = ProfileStore.load()
         Task { await reloadVPN() }
+    }
+
+    /// Apply a shared server or chain payload (new IDs minted for servers/chains).
+    @discardableResult
+    func importPayload(_ payload: HopperConf.Payload) -> String {
+        switch payload {
+        case .server(let profile):
+            state.addServer(profile)
+            persist()
+            return "Imported server \(profile.displayName)."
+        case .chain(let name, let hops):
+            var hopIDs: [UUID] = []
+            for hop in hops {
+                state.addServer(hop)
+                hopIDs.append(hop.id)
+            }
+            let chainID = state.addChain(name: name)
+            if let index = state.chains.firstIndex(where: { $0.id == chainID }) {
+                state.chains[index].hopIDs = hopIDs
+            }
+            state.selectChain(chainID)
+            persist()
+            let label = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "Untitled chain" : name
+            let message = "Imported chain \(label) with \(hops.count) server(s)."
+            // Defer the success alert so any import/password sheet can finish
+            // dismissing first (presenting an alert over a sheet fails on iOS/Mac).
+            let prompt = ChainImportPrompt(chainID: chainID, message: message)
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                self.chainImportPrompt = prompt
+            }
+            return message
+        }
+    }
+
+    func dismissChainImportPrompt() {
+        chainImportPrompt = nil
+    }
+
+    func handleIncomingHopperConfURL(_ url: URL) {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed { url.stopAccessingSecurityScopedResource() }
+        }
+        do {
+            let data = try Data(contentsOf: url)
+            if HopperConf.isHopperConfFile(data) {
+                pendingHopperConfData = data
+            } else if let text = String(data: data, encoding: .utf8) {
+                let payload = try HopperConf.parsePayloadJSON(text)
+                _ = importPayload(payload)
+            } else {
+                errorMessage = HopperConf.ConfError.invalidEnvelope.localizedDescription
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     var isConnected: Bool { vpnStatus == .connected }
@@ -141,6 +210,9 @@ final class VPNController: ObservableObject {
             reportError("Select a chain with at least one server (entry → exit).")
             return
         }
+        connectGeneration += 1
+        let generation = connectGeneration
+        ignoreDisconnectError = false
         errorMessage = nil
         provisionStatus = nil
         ProfileStore.clearLastTunnelError()
@@ -149,6 +221,7 @@ final class VPNController: ObservableObject {
         do {
             provisionStatus = "Checking server versions…"
             let versionOutcome = try await preflightVersions(hops: hops)
+            guard generation == connectGeneration else { return }
             switch versionOutcome {
             case .appTooOld(let required):
                 provisionStatus = nil
@@ -168,6 +241,7 @@ final class VPNController: ObservableObject {
 
             try await performConnect(chain: chain, entry: entry, hops: hops, restartHopperd: restartHopperd)
         } catch {
+            guard generation == connectGeneration else { return }
             provisionStatus = nil
             reportError(HopErrorDetails.describe(error))
         }
@@ -276,6 +350,9 @@ final class VPNController: ObservableObject {
     }
 
     func disconnect() {
+        ignoreDisconnectError = true
+        connectGeneration += 1
+        provisionStatus = nil
         manager?.connection.stopVPNTunnel()
     }
 
@@ -342,7 +419,12 @@ final class VPNController: ObservableObject {
     }
 
     private func readTunnelError() async {
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        if ignoreDisconnectError {
+            ignoreDisconnectError = false
+            return
+        }
+        // Extension writes the app-group error slightly after NE flips to disconnected.
+        try? await Task.sleep(nanoseconds: 500_000_000)
         if let saved = ProfileStore.loadLastTunnelError() {
             reportError(saved)
             return
@@ -351,6 +433,10 @@ final class VPNController: ObservableObject {
         session.fetchLastDisconnectError { [weak self] error in
             Task { @MainActor in
                 guard let self, let error else { return }
+                if self.ignoreDisconnectError {
+                    self.ignoreDisconnectError = false
+                    return
+                }
                 self.reportError(HopErrorDetails.describe(error))
             }
         }

@@ -4,48 +4,57 @@ import SwiftUI
 struct ServerExportView: View {
     let server: HopNodeProfile
     @Environment(\.dismiss) private var dismiss
-    @State private var copied = false
 
-    private var configJSON: String {
-        HopQRExporter.exportJSON(server)
+    @State private var password = ""
+    @State private var errorMessage: String?
+
+    private var qrJSON: String {
+        (try? HopperConf.qrPayloadJSON(for: .server(server))) ?? "{}"
     }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                Text("Scan on another device to import this server.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-
-                if let qr = HopQRCodeImage.make(from: configJSON) {
-                    Image(uiImage: qr)
-                        .interpolation(.none)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity)
-                        .aspectRatio(1, contentMode: .fit)
-                        .padding(16)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
-                } else {
-                    Text("Could not generate QR code.")
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 16)
+            Form {
+                Section {
+                    Text("Scan on another device to import this server. The QR is only for in-person transfer — it is not shared as a file.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    if let qr = HopQRCodeImage.make(from: qrJSON) {
+                        Image(uiImage: qr)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity)
+                            .aspectRatio(1, contentMode: .fit)
+                            .padding(8)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                    } else {
+                        Text("Could not generate QR code.")
+                            .foregroundStyle(.red)
+                    }
+                } header: {
+                    Text("QR (device to device)")
                 }
 
-                Button(copied ? "Copied" : "Copy config") {
-                    UIPasteboard.general.string = configJSON
-                    copied = true
+                Section {
+                    SecureField("Optional encryption password", text: $password)
+                    Text("Leave empty to use the default password. The file always encrypts private keys.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Button("Share .hopperconf…") {
+                        shareFile()
+                    }
+                } header: {
+                    Text("Share file")
                 }
-                .buttonStyle(.borderedProminent)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 16)
 
-                Spacer(minLength: 0)
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage).foregroundStyle(.red)
+                    }
+                }
             }
             .navigationTitle("Export")
             .navigationBarTitleDisplayMode(.inline)
@@ -56,9 +65,24 @@ struct ServerExportView: View {
             }
         }
     }
+
+    private func shareFile() {
+        errorMessage = nil
+        do {
+            let data = try HopperConf.encryptFile(payload: .server(server), password: password)
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent(HopperConf.suggestedFileName(for: .server(server)))
+            try data.write(to: url, options: .atomic)
+            HopperConfSharePresenter.present(fileURL: url) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 }
 
-private enum HopQRCodeImage {
+enum HopQRCodeImage {
     static func make(from string: String, scale: CGFloat = 12) -> UIImage? {
         let context = CIContext()
         let filter = CIFilter.qrCodeGenerator()

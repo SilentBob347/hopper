@@ -90,9 +90,9 @@ fun ServerLibraryScreen(
             ) {
                 Text(
                     if (isPickMode) {
-                        "No servers — deploy a server, scan a QR code, or import JSON, then tap to add to this chain."
+                        "No servers — deploy a server, scan a QR code, or import a .hopperconf file, then tap to add to this chain."
                     } else {
-                        "No servers — deploy a server, scan a QR code, or import JSON."
+                        "No servers — deploy a server, scan a QR code, or import a .hopperconf file."
                     },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -109,8 +109,9 @@ fun ServerLibraryScreen(
                     ServerLibraryRow(
                         server = server,
                         onClick = {
-                            if (isPickMode && chainId != null) {
-                                vpn.addServerToChain(chainId, server.id)
+                            val pickChainId = chainId
+                            if (pickChainId != null) {
+                                vpn.addServerToChain(pickChainId, server.id)
                                 onBack()
                             } else {
                                 onServerDetail(server.id)
@@ -157,10 +158,10 @@ fun ServerLibraryScreen(
     }
 
     if (showImport) {
-        ImportJsonDialog(
+        ImportConfDialog(
             onDismiss = { showImport = false },
-            onImport = { hop ->
-                vpn.addServer(hop)
+            onImport = { payload ->
+                vpn.importPayload(payload)
                 showImport = false
             },
             onError = vpn::setError,
@@ -172,9 +173,9 @@ fun ServerLibraryScreen(
             onDismiss = { showScanner = false },
             onScan = { payload ->
                 runCatching {
-                    com.aengix.hopper.data.HopQRParser.parse(payload)
-                }.onSuccess { hop ->
-                    vpn.addServer(hop)
+                    com.aengix.hopper.data.HopperConf.parsePayloadJson(payload)
+                }.onSuccess { imported ->
+                    vpn.importPayload(imported)
                     showScanner = false
                 }.onFailure { error ->
                     vpn.setError(error.message)

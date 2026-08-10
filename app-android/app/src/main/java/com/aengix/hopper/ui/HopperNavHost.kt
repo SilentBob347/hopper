@@ -1,6 +1,11 @@
 package com.aengix.hopper.ui
 
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -30,6 +35,8 @@ fun HopperNavHost(
     onRequestCameraPermission: (onGranted: () -> Unit) -> Unit,
     startDestination: String = Routes.HOME,
 ) {
+    val chainImportPrompt by vpn.chainImportPrompt.collectAsState()
+
     NavHost(navController = navController, startDestination = startDestination) {
         composable(Routes.HOME) {
             HomeScreen(
@@ -39,6 +46,7 @@ fun HopperNavHost(
                     navController.navigate(Routes.chainDetail(chainId))
                 },
                 onRequestVpnConnect = onRequestVpnConnect,
+                onRequestCameraPermission = onRequestCameraPermission,
             )
         }
         composable(Routes.CHAINS) {
@@ -49,6 +57,7 @@ fun HopperNavHost(
                     navController.navigate(Routes.chainDetail(chainId))
                 },
                 onOpenServers = { navController.navigate(Routes.servers()) },
+                onRequestCameraPermission = onRequestCameraPermission,
             )
         }
         composable(Routes.CHAIN_DETAIL) { backStackEntry ->
@@ -89,5 +98,30 @@ fun HopperNavHost(
                 onBack = { navController.popBackStack() },
             )
         }
+    }
+
+    chainImportPrompt?.let { prompt ->
+        AlertDialog(
+            onDismissRequest = { vpn.dismissChainImportPrompt() },
+            title = { Text("Chain imported") },
+            text = { Text(prompt.message) },
+            confirmButton = {
+                TextButton(onClick = {
+                    vpn.dismissChainImportPrompt()
+                    navController.navigate(Routes.HOME) {
+                        popUpTo(Routes.HOME) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                    onRequestVpnConnect(false)
+                }) {
+                    Text("Connect")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { vpn.dismissChainImportPrompt() }) {
+                    Text("Close")
+                }
+            },
+        )
     }
 }

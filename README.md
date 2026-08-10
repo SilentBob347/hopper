@@ -43,7 +43,7 @@ The app uploads `hopperd`, runs `configure_server.sh`, generates a deploy key, a
 
 **Alternative (developers):** deploy from your Mac with `./deploy.sh` — see [Deploy from the command line](#deploy-from-the-command-line).
 
-You can also add servers via **Scan QR** or **Import JSON** if you used the CLI deploy flow.
+You can also add servers via **Scan QR** or **Import** (`.hopperconf` file / paste JSON) if you used the CLI deploy flow.
 
 ## Screenshots
 
@@ -307,13 +307,14 @@ Binaries land in `server/dist/` (gitignored).
 | **Home**             | Select chain, connect/disconnect, route preview |
 | **Configure chains** | Create/delete chains, open server library       |
 | **Chain detail**     | Name, reorder hops, add/remove servers          |
-| **Server library**   | **Deploy** new servers, scan QR, import JSON, delete saved servers |
+| **Server library**   | **Deploy** new servers, scan QR, import `.hopperconf` / JSON, delete servers |
+| **Export**           | QR (in-person) + encrypted `.hopperconf` share for servers and chains |
 
 Profiles persist in the App Group (`hopper-profiles.json`).
 
 ### Server profile JSON (v2)
 
-Scan QR, **Import JSON**, and `./deploy.sh` all use the same **v2** wire format (`HopProfileCodec` on iOS/Android, `server/hopper/node_profile.py` on the server). The app stores servers in a library; chains reference server IDs in order.
+Scan QR, **Import**, and `./deploy.sh` all use the same **v2** hop wire format (`HopProfileCodec` on iOS/Android, `server/hopper/node_profile.py` on the server). Encrypted cross-device shares use [`.hopperconf`](#hopperconf-share-files-v1). The app stores servers in a library; chains reference server IDs in order.
 
 **Example** (as emitted by `configure_server.sh --json-only`):
 
@@ -346,6 +347,63 @@ Scan QR, **Import JSON**, and `./deploy.sh` all use the same **v2** wire format 
 | `host_key` | No | SSH host key pin(s) for first connect — string or array. Alias: `hostKeys` |
 
 Treat exported JSON and QR codes as **secrets** (they contain the hop private key).
+
+### `.hopperconf` share files (v1)
+
+Servers and chains are shared between devices as encrypted **`.hopperconf`** files (`application/x-hopperconf`). QR codes stay **unencrypted** for in-person scanning only — they are never written to a shareable file.
+
+#### Envelope (on disk)
+
+Always JSON. Private keys live only inside the encrypted `data` blob.
+
+```json
+{
+  "v": 1,
+  "fmt": "hopperconf",
+  "alg": "aes-256-gcm",
+  "kdf": "pbkdf2-sha256",
+  "iter": 210000,
+  "salt": "<base64 16 bytes>",
+  "nonce": "<base64 12 bytes>",
+  "data": "<base64 ciphertext || 16-byte GCM tag>"
+}
+```
+
+| Field | Notes |
+| ----- | ----- |
+| `fmt` | Must be `hopperconf` |
+| `alg` | `aes-256-gcm` (AES-256-GCM, 128-bit tag appended to ciphertext) |
+| `kdf` | `pbkdf2-sha256` — PBKDF2-HMAC-SHA256 over the **UTF-8** password |
+| `iter` | Iteration count (apps use `210000`) |
+| `salt` / `nonce` | Random per file (`16` / `12` bytes) |
+| `data` | `AES-GCM(key, nonce, plaintext)` output: ciphertext ‖ tag |
+
+**Password:** optional at export. Empty / omitted at export → default password `ɹǝddoH` (app display name). On import, apps try the **default password first**, then a user-provided password if that fails. Derived key length is 32 bytes.
+
+#### Plaintext payload (after decrypt, or QR)
+
+**Server** (file payload uses `kind`; QR for a single server may still be bare hop-profile v2):
+
+```json
+{
+  "v": 1,
+  "kind": "server",
+  "server": { "v": 2, "name": "...", "host": "...", "port": "22", "user": "...", "private_key": "...", "...": "..." }
+}
+```
+
+**Chain** (embeds full hop profiles in order; import mints new server IDs and a new chain):
+
+```json
+{
+  "v": 1,
+  "kind": "chain",
+  "name": "My chain",
+  "hops": [ { "v": 2, "...": "..." }, { "v": 2, "...": "..." } ]
+}
+```
+
+Apps open `.hopperconf` via the share sheet / Files / “open with”. Interop tests (Python reference, Swift CryptoKit, Android `HopperConf`) live under `tests/hopperconf/` — run `./tests/hopperconf/run.sh`.
 
 ### Build & run
 
@@ -388,9 +446,9 @@ server/
 
 ## Android app reference
 
-Same screens and flow as iOS: home (chain + connect), chain configurator, chain detail, server library (**Deploy**, QR scan + JSON import).
+Same screens and flow as iOS: home (chain + connect), chain configurator, chain detail, server library (**Deploy**, QR scan + `.hopperconf` / JSON import), encrypted file share for servers and chains.
 
-Profiles persist in app-private storage (`hopper-profiles.json`). Server profile JSON format is identical to iOS — see [Server profile JSON (v2)](#server-profile-json-v2).
+Profiles persist in app-private storage (`hopper-profiles.json`). Server profile JSON and `.hopperconf` formats are identical to iOS — see [Server profile JSON (v2)](#server-profile-json-v2) and [`.hopperconf` share files (v1)](#hopperconf-share-files-v1).
 
 ### Build & run
 

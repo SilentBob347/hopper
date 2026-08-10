@@ -2,6 +2,7 @@ package com.aengix.hopper
 
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -93,6 +94,7 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(EXTRA_SEED_DEMO, false) == true) {
             vpnController.loadDemoData()
         }
+        handleIncomingIntent(intent)
 
         setContent {
             val navController = rememberNavController()
@@ -110,6 +112,40 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent == null) return
+        when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data?.let { readAndOffer(it) }
+            Intent.ACTION_SEND -> {
+                val uri = intent.getParcelableExtraCompat<Uri>(Intent.EXTRA_STREAM)
+                if (uri != null) {
+                    readAndOffer(uri)
+                } else {
+                    intent.getStringExtra(Intent.EXTRA_TEXT)?.toByteArray(Charsets.UTF_8)?.let {
+                        vpnController.offerHopperConfBytes(it)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun readAndOffer(uri: Uri) {
+        runCatching {
+            contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: error("Could not read shared file")
+        }.onSuccess { bytes ->
+            vpnController.offerHopperConfBytes(bytes)
+        }.onFailure {
+            vpnController.setError(it.message)
+        }
+    }
+
     private fun resolveStartDestination(intent: Intent?): String {
         val route = intent?.getStringExtra(EXTRA_ROUTE)?.trim().orEmpty()
         if (route.isEmpty()) return Routes.HOME
@@ -124,5 +160,14 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         vpnController.readTunnelErrorIfNeeded()
+    }
+}
+
+@Suppress("DEPRECATION")
+private inline fun <reified T> Intent.getParcelableExtraCompat(key: String): T? {
+    return if (android.os.Build.VERSION.SDK_INT >= 33) {
+        getParcelableExtra(key, T::class.java)
+    } else {
+        getParcelableExtra(key) as? T
     }
 }

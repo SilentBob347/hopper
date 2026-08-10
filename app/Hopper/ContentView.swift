@@ -4,6 +4,13 @@ struct ContentView: View {
     @EnvironmentObject private var vpn: VPNController
     @State private var showConnectOptions = false
     @State private var showServerUpdateAlert = false
+    @State private var showShareChain = false
+    @State private var showScanner = false
+    @State private var showImport = false
+
+    private var actionsDisabled: Bool {
+        vpn.isBusy || vpn.provisionStatus != nil
+    }
 
     var body: some View {
         NavigationStack {
@@ -51,28 +58,41 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Button(vpn.isConnected ? "Disconnect" : "Connect") {
-                        if vpn.isConnected || vpn.isBusy {
-                            vpn.disconnect()
-                        } else {
-                            showConnectOptions = true
+                    // Bordered styles so List doesn't treat the whole row as one control
+                    // (plain Buttons in an HStack often fire Connect and Share together).
+                    VStack(spacing: 10) {
+                        HStack(spacing: 12) {
+                            Button(vpn.isConnected ? "Disconnect" : "Connect") {
+                                if vpn.isConnected || vpn.isBusy {
+                                    vpn.disconnect()
+                                } else {
+                                    showConnectOptions = true
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.regular)
+                            .disabled(actionsDisabled || vpn.state.entryHop == nil)
+                            .frame(maxWidth: .infinity)
+
+                            Button("Share…") {
+                                showShareChain = true
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(actionsDisabled || vpn.state.activeHops.isEmpty)
+                            .frame(maxWidth: .infinity)
                         }
-                    }
-                    .disabled(vpn.isBusy || vpn.state.entryHop == nil || vpn.provisionStatus != nil)
-                    .confirmationDialog(
-                        "Connect to chain",
-                        isPresented: $showConnectOptions,
-                        titleVisibility: .visible
-                    ) {
-                        Button("Connect") {
-                            Task { await vpn.connect(restartHopperd: false) }
+
+                        HStack(spacing: 12) {
+                            Button("Scan QR") { showScanner = true }
+                                .buttonStyle(.bordered)
+                                .disabled(actionsDisabled)
+                                .frame(maxWidth: .infinity)
+
+                            Button("Import") { showImport = true }
+                                .buttonStyle(.bordered)
+                                .disabled(actionsDisabled)
+                                .frame(maxWidth: .infinity)
                         }
-                        Button("Connect & restart hopperd") {
-                            Task { await vpn.connect(restartHopperd: true) }
-                        }
-                        Button("Cancel", role: .cancel) {}
-                    } message: {
-                        Text("Restart hopperd on all nodes if you've changed the chain or are having connection issues on the servers. Leave off for faster reconnects.")
                     }
 
                     Text(statusLabel)
@@ -130,6 +150,99 @@ struct ContentView: View {
                     Text("Server software is older than app v\(prompt.targetVersion). Update before connecting?")
                 }
             }
+            .confirmationDialog(
+                "Connect to chain",
+                isPresented: $showConnectOptions,
+                titleVisibility: .visible
+            ) {
+                Button("Connect") {
+                    scheduleConnect(restartHopperd: false)
+                }
+                Button("Connect & restart hopperd") {
+                    scheduleConnect(restartHopperd: true)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Restart hopperd on all nodes if you've changed the chain or are having connection issues on the servers. Leave off for faster reconnects.")
+            }
+            .onChange(of: vpn.chainImportPrompt != nil) { _, showing in
+                if showing {
+                    showImport = false
+                    showScanner = false
+                    showShareChain = false
+                    showConnectOptions = false
+                }
+            }
+            .alert(
+                "Chain imported",
+                isPresented: Binding(
+                    get: { vpn.chainImportPrompt != nil },
+                    set: { if !$0 { vpn.dismissChainImportPrompt() } }
+                )
+            ) {
+                // New chain ID: normal Connect starts hopperd if needed (--if-running skip),
+                // without stopping other chains' processes.
+                Button("Connect") {
+                    vpn.dismissChainImportPrompt()
+                    scheduleConnect(restartHopperd: false)
+                }
+                Button("Close", role: .cancel) {
+                    vpn.dismissChainImportPrompt()
+                }
+            } message: {
+                Text(vpn.chainImportPrompt?.message ?? "The chain was imported successfully.")
+            }
+            .sheet(isPresented: $showShareChain) {
+                ChainExportView(
+                    chainName: vpn.state.selectedChain?.name ?? "",
+                    hops: vpn.state.activeHops
+                )
+            }
+            .sheet(isPresented: $showScanner) {
+                QRCodeScannerView { payload in
+                    do {
+                        let imported = try HopperConf.parsePayloadJSON(payload)
+                        _ = vpn.importPayload(imported)
+                        showScanner = false
+                    } catch {
+                        vpn.errorMessage = error.localizedDescription
+                    }
+                }
+            }
+            .sheet(isPresented: $showImport) {
+                HopImportView { payload in
+                    _ = vpn.importPayload(payload)
+                    showImport = false
+                }
+            }
+            .sheet(item: Binding(
+                get: { vpn.pendingHopperConfData.map { HopperConfPendingItem(data: $0) } },
+                set: { if $0 == nil { vpn.pendingHopperConfData = nil } }
+            )) { item in
+                HopperConfOpenPasswordView(
+                    fileData: item.data,
+                    onImport: { payload in
+                        _ = vpn.importPayload(payload)
+                        vpn.pendingHopperConfData = nil
+                    },
+                    onCancel: {
+                        vpn.pendingHopperConfData = nil
+                    }
+                )
+            }
+        }
+    }
+
+    /// Dismiss overlays first and delay connect so alert/dialog dismissal
+    /// doesn't deliver the same tap to Share… underneath (which races VPN start).
+    private func scheduleConnect(restartHopperd: Bool) {
+        showShareChain = false
+        showScanner = false
+        showImport = false
+        showConnectOptions = false
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            await vpn.connect(restartHopperd: restartHopperd)
         }
     }
 
@@ -168,5 +281,15 @@ struct ContentView: View {
         case .disconnected: return "Disconnected"
         default: return "Not configured"
         }
+    }
+}
+
+private struct HopperConfPendingItem: Identifiable {
+    let id: Int
+    let data: Data
+
+    init(data: Data) {
+        self.data = data
+        self.id = data.hashValue
     }
 }

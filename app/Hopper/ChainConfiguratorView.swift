@@ -3,6 +3,8 @@ import SwiftUI
 struct ChainConfiguratorView: View {
     @EnvironmentObject private var vpn: VPNController
     @State private var chainToDelete: HopChain?
+    @State private var showScanner = false
+    @State private var showImport = false
 
     var body: some View {
         List {
@@ -13,7 +15,7 @@ struct ChainConfiguratorView: View {
                     Label("Server library", systemImage: "server.rack")
                 }
             } footer: {
-                Text("Scan QR codes or import JSON here to add servers. Then build chains from those servers below.")
+                Text("Manage individual servers in the library, or scan / import a shared chain or server below.")
             }
 
             Section("Chains") {
@@ -62,12 +64,41 @@ struct ChainConfiguratorView: View {
                 } label: {
                     Label("New chain", systemImage: "plus")
                 }
+
+                Button {
+                    showScanner = true
+                } label: {
+                    Label("Scan QR", systemImage: "qrcode.viewfinder")
+                }
+
+                Button {
+                    showImport = true
+                } label: {
+                    Label("Import", systemImage: "square.and.arrow.down")
+                }
             }
         }
         .navigationTitle("Chains")
         .toolbar {
             if !vpn.state.chains.isEmpty {
                 EditButton()
+            }
+        }
+        .sheet(isPresented: $showScanner) {
+            QRCodeScannerView { payload in
+                do {
+                    let imported = try HopperConf.parsePayloadJSON(payload)
+                    _ = vpn.importPayload(imported)
+                    showScanner = false
+                } catch {
+                    vpn.errorMessage = error.localizedDescription
+                }
+            }
+        }
+        .sheet(isPresented: $showImport) {
+            HopImportView { payload in
+                _ = vpn.importPayload(payload)
+                showImport = false
             }
         }
         .alert("Delete chain?", isPresented: Binding(

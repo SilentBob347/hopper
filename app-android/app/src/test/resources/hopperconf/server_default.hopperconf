@@ -1,0 +1,10 @@
+{
+  "alg": "aes-256-gcm",
+  "data": "ZU1wMVVZbXrSRL+OL6mobz/DL2e4yzQeVMouJTKoBVHKQqLOFIjwhDoOJHMPSx7P6dNbUEfVPeQQc9DDjvhci/L8P/8xgMl0U8oQNjF2CTuCQAWpzt5FNaDW18NdkggU/akig/hTHKHxMEfL6nNSDqhDGQDeSDsE09NscghsRfJPgi0uUKFrQ1xON0FbsDEiUbydKKvwdq8HHOSVzxRu22F/8V+LHhiIR5lfH3JAcYgP/MtzmeLudaEC3kZI4EuzSvfoMxNFLxkDaw7+VOkj2IheXoUrEH6Jaj4jpSeBP9JZE0qHZo2BgTy9FoSOTHAJopaua6kYj8+xDnBcE7ZsFE/ahGZBWr13hz1rzPWgM7QkrwpxZf0ate5f3D6F0/yU0f558VoftXjTJpsf1WxosNUbnVQLr4+PCG6/VdXjg4hbDH+2/JBJe9sxaYmBKRxJGyDVElTA5tP2LFmocl13C6dk97GwtsuTpave0tLtEcyWSpY=",
+  "fmt": "hopperconf",
+  "iter": 210000,
+  "kdf": "pbkdf2-sha256",
+  "nonce": "EBESExQVFhcYGRob",
+  "salt": "AAECAwQFBgcICQoLDA0ODw==",
+  "v": 1
+}

@@ -52,7 +52,10 @@ object HopProfileCodec {
         if (trimmed.isEmpty()) throw HopQRParser.ParseError.EmptyPayload
 
         val json = runCatching { JSONObject(trimmed) }.getOrElse { throw HopQRParser.ParseError.InvalidJson }
+        return parseObject(json)
+    }
 
+    fun parseObject(json: JSONObject): HopNodeProfile {
         if (json.has(Field.VERSION)) {
             val version = json.optInt(Field.VERSION, -1)
             if (version != PROFILE_VERSION) throw HopQRParser.ParseError.InvalidJson

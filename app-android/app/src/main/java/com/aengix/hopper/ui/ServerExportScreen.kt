@@ -1,15 +1,16 @@
 package com.aengix.hopper.ui
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -17,6 +18,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -31,10 +33,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.aengix.hopper.data.HopQRExporter
+import androidx.core.content.FileProvider
+import com.aengix.hopper.data.HopperConf
 import com.aengix.hopper.model.HopNodeProfile
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,9 +48,11 @@ fun ServerExportScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    val configJson = remember(server) { HopQRExporter.exportJson(server) }
-    val qrBitmap = remember(configJson) { QRCodeGenerator.encode(configJson) }
-    var copied by remember { mutableStateOf(false) }
+    val payload = remember(server) { HopperConf.Payload.Server(server) }
+    val qrJson = remember(payload) { HopperConf.qrPayloadJson(payload) }
+    val qrBitmap = remember(qrJson) { QRCodeGenerator.encode(qrJson) }
+    var password by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -62,11 +69,12 @@ fun ServerExportScreen(
         Column(
             modifier = Modifier
                 .padding(padding)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                "Scan on another device to import this server.",
+                "Scan on another device to import this server. The QR is only for in-person transfer — it is not shared as a file.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -93,23 +101,58 @@ fun ServerExportScreen(
                 )
             }
 
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Optional encryption password") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 20.dp),
+            )
+            Text(
+                "Leave empty to use the default password. The file always encrypts private keys.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+
             Button(
                 onClick = {
-                    copyToClipboard(context, configJson)
-                    copied = true
+                    errorMessage = null
+                    runCatching { shareHopperConf(context, payload, password) }
+                        .onFailure { errorMessage = it.message }
                 },
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
-                    .padding(top = 20.dp)
+                    .padding(bottom = 24.dp)
                     .fillMaxWidth(),
             ) {
-                Text(if (copied) "Copied" else "Copy config")
+                Text("Share .hopperconf…")
+            }
+
+            errorMessage?.let {
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
             }
         }
     }
 }
 
-private fun copyToClipboard(context: Context, text: String) {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("hop config", text))
+internal fun shareHopperConf(context: Context, payload: HopperConf.Payload, password: String) {
+    val bytes = HopperConf.encryptFile(payload, password)
+    val dir = File(context.cacheDir, "share").apply { mkdirs() }
+    val file = File(dir, HopperConf.suggestedFileName(payload))
+    file.writeBytes(bytes)
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = HopperConf.MIME_TYPE
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(intent, "Share Hopper config"))
 }

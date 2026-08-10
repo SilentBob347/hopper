@@ -6,6 +6,7 @@ import android.net.VpnService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aengix.hopper.data.DemoProfiles
+import com.aengix.hopper.data.HopperConf
 import com.aengix.hopper.data.ProfileStore
 import com.aengix.hopper.model.AppState
 import com.aengix.hopper.model.ChainStatusReport
@@ -141,8 +142,88 @@ class VpnController(application: Application) : AndroidViewModel(application) {
         updateState { it.removeHopFromChain(chainID, indices) }
     }
 
+    /** Apply a shared server or chain payload (new IDs minted for servers/chains). */
+    fun importPayload(payload: com.aengix.hopper.data.HopperConf.Payload): String {
+        var message = ""
+        var importedChainId: String? = null
+        updateState { state ->
+            when (payload) {
+                is com.aengix.hopper.data.HopperConf.Payload.Server -> {
+                    message = "Imported server ${payload.profile.displayName}."
+                    state.addServer(payload.profile)
+                }
+                is com.aengix.hopper.data.HopperConf.Payload.Chain -> {
+                    var next = state
+                    val hopIDs = mutableListOf<String>()
+                    for (hop in payload.hops) {
+                        next = next.addServer(hop)
+                        hopIDs += hop.id
+                    }
+                    val (withChain, chainId) = next.addChain(name = payload.name)
+                    importedChainId = chainId
+                    next = withChain.copy(
+                        chains = withChain.chains.map { chain ->
+                            if (chain.id == chainId) chain.copy(hopIDs = hopIDs) else chain
+                        },
+                        selectedChainID = chainId,
+                    )
+                    val label = payload.name.trim().ifEmpty { "Untitled chain" }
+                    message = "Imported chain $label with ${payload.hops.size} server(s)."
+                    next
+                }
+            }
+        }
+        importedChainId?.let { chainId ->
+            _chainImportPrompt.value = ChainImportPrompt(chainId = chainId, message = message)
+        }
+        return message
+    }
+
+    data class ChainImportPrompt(
+        val chainId: String,
+        val message: String,
+    )
+
+    private val _chainImportPrompt = MutableStateFlow<ChainImportPrompt?>(null)
+    val chainImportPrompt: StateFlow<ChainImportPrompt?> = _chainImportPrompt.asStateFlow()
+
+    fun dismissChainImportPrompt() {
+        _chainImportPrompt.value = null
+    }
+
     fun setError(message: String?) {
         _errorMessage.value = message
+    }
+
+    private val _pendingHopperConfBytes = MutableStateFlow<ByteArray?>(null)
+    val pendingHopperConfBytes: StateFlow<ByteArray?> = _pendingHopperConfBytes.asStateFlow()
+
+    fun offerHopperConfBytes(bytes: ByteArray) {
+        if (HopperConf.isHopperConfFile(bytes)) {
+            _pendingHopperConfBytes.value = bytes
+        } else {
+            runCatching {
+                val payload = HopperConf.parsePayloadJson(String(bytes, Charsets.UTF_8))
+                importPayload(payload)
+            }.onFailure {
+                _errorMessage.value = it.message
+            }
+        }
+    }
+
+    fun clearPendingHopperConf() {
+        _pendingHopperConfBytes.value = null
+    }
+
+    fun importPendingHopperConf(password: String) {
+        val bytes = _pendingHopperConfBytes.value ?: return
+        runCatching {
+            val payload = HopperConf.decryptFile(bytes, password)
+            importPayload(payload)
+            _pendingHopperConfBytes.value = null
+        }.onFailure {
+            _errorMessage.value = it.message
+        }
     }
 
     fun cancelServerUpdate() {

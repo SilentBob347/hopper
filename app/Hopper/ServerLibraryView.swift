@@ -62,14 +62,14 @@ struct ServerLibraryView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button("Deploy") { showDeploy = true }
                 Button("Scan QR") { showScanner = true }
-                Button("Import JSON") { showImportJSON = true }
+                Button("Import") { showImportJSON = true }
             }
         }
         .sheet(isPresented: $showScanner) {
             QRCodeScannerView { payload in
                 do {
-                    let hop = try HopQRParser.parse(payload)
-                    vpn.addServer(hop)
+                    let imported = try HopperConf.parsePayloadJSON(payload)
+                    _ = vpn.importPayload(imported)
                     showScanner = false
                 } catch {
                     vpn.errorMessage = error.localizedDescription
@@ -80,8 +80,8 @@ struct ServerLibraryView: View {
             DeployServerView()
         }
         .sheet(isPresented: $showImportJSON) {
-            HopImportJSONView { hop in
-                vpn.addServer(hop)
+            HopImportView { payload in
+                _ = vpn.importPayload(payload)
                 showImportJSON = false
             }
         }
@@ -89,9 +89,9 @@ struct ServerLibraryView: View {
 
     private var emptyDescription: String {
         if isPickMode {
-            return "Deploy a server, scan a QR code, or import JSON, then tap to add to this chain."
+            return "Deploy a server, scan a QR code, or import a .hopperconf file, then tap to add to this chain."
         }
-        return "Deploy a server, scan a QR code, or import JSON."
+        return "Deploy a server, scan a QR code, or import a .hopperconf file."
     }
 
     @ViewBuilder

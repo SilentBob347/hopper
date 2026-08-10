@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -41,6 +42,16 @@ fun ChainDetailScreen(
     val chain = state.chains.firstOrNull { it.id == chainId }
     val hops = chain?.let { state.resolveHops(it) }.orEmpty()
     var name by remember(chain?.name) { mutableStateOf(chain?.name.orEmpty()) }
+    var showExport by remember { mutableStateOf(false) }
+
+    if (showExport) {
+        ChainExportScreen(
+            chainName = chain?.name.orEmpty(),
+            hops = hops,
+            onBack = { showExport = false },
+        )
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -49,6 +60,13 @@ fun ChainDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (hops.isNotEmpty()) {
+                        TextButton(onClick = { showExport = true }) {
+                            Text("Export")
+                        }
                     }
                 },
             )
